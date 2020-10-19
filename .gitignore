@@ -1,0 +1,6 @@
+./3D-ResNets-PyTorch/*
+./maskrcnn/*
+
+# Project exclude paths
+/input/
+/output/
