@@ -1,25 +1,28 @@
 
+SPLITS=train val test
+DATASETS=msrvtt# yt2t msrvtt2017 tvvtt
+
+DATASET?=msrvtt
+DATASET=msrvtt
+
 ### Directory Setting
-IN_DIR=input
+IN_DIR=datasets
 OUT_DIR=output
-META_DIR=$(OUT_DIR)/metadata
-FEAT_DIR=$(OUT_DIR)/feature
-MODEL_DIR=$(OUT_DIR)/model_svo
+META_DIR=$(IN_DIR)/$(DATASET)/metadata
+FEAT_DIR=$(IN_DIR)/$(DATASET)/features
+MODEL_DIR=experiments
 RESULTS_DIR=$(OUT_DIR)/results
 
 MSRVTT2016_DIR=$(IN_DIR)/msrvtt
 MSRVTT2017_DIR=$(IN_DIR)/msrvtt2017
 YT2T_DIR=$(IN_DIR)/yt2t
 
-SPLITS=train val test
-DATASETS=msrvtt# yt2t msrvtt2017 tvvtt
 
 WORD_COUNT_THRESHOLD?=3  # in output/metadata this threshold was 0; was 3 in output/metadata2017
 MAX_SEQ_LEN?=30          # in output/metadata seqlen was 20; was 30 in output/metadata2017
 
 GID?=5
 
-DATASET?=msrvtt
 TRAIN_DATASET?=$(DATASET)
 VAL_DATASET?=$(DATASET)
 TEST_DATASET?=$(DATASET)
