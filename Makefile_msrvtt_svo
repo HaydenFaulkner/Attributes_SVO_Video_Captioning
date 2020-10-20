@@ -14,7 +14,7 @@ MODEL_DIR=experiments
 
 MSRVTT2016_DIR=$(IN_DIR)/msrvtt
 MSRVTT2017_DIR=$(IN_DIR)/msrvtt2017
-YT2T_DIR=$(IN_DIR)/yt2t
+YT2T_DIR=$(IN_DIR)/msvd
 
 
 WORD_COUNT_THRESHOLD?=3  # in output/metadata this threshold was 0; was 3 in output/metadata2017
