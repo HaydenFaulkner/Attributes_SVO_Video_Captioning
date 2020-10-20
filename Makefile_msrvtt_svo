@@ -7,11 +7,10 @@ DATASET=msrvtt
 
 ### Directory Setting
 IN_DIR=datasets
-OUT_DIR=output
+OUT_DIR=results
 META_DIR=$(IN_DIR)/$(DATASET)/metadata
 FEAT_DIR=$(IN_DIR)/$(DATASET)/features
 MODEL_DIR=experiments
-RESULTS_DIR=$(OUT_DIR)/results
 
 MSRVTT2016_DIR=$(IN_DIR)/msrvtt
 MSRVTT2017_DIR=$(IN_DIR)/msrvtt2017
@@ -101,7 +100,7 @@ TRAIN_OPT=--beam_size $(BEAM_SIZE) --labda $(LAMBDA) --rnn_type $(RNN_TYPE) --in
 	--use_rl $(USE_RL) --use_mixer $(USE_MIXER) --mixer_from $(MIXER_FROM) \
 	--use_cst $(USE_CST) --scb_captions $(SCB_CAPTIONS) --scb_baseline $(SCB_BASELINE) \
 	--loglevel $(LOGLEVEL) --model_type $(MODEL_TYPE) --use_eos $(USE_EOS) \
-	--model_file $@ --start_from $(START_FROM) --result_file $(RESULTS_DIR)/$(basename $@)_test.json \
+	--model_file $@ --start_from $(START_FROM) --result_file $(OUT_DIR)/$(basename $@)_test.json \
 	2>&1 | tee $(basename $@).log
 
 TEST_OPT=--beam_size $(BEAM_SIZE) \
