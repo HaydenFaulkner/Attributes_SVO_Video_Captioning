@@ -92,7 +92,7 @@ TRAIN_OPT=--beam_size $(BEAM_SIZE) --labda $(LAMBDA) --rnn_type $(RNN_TYPE) --in
 	--train_seq_per_img $(TRAIN_SEQ_PER_IMG) --test_seq_per_img $(TEST_SEQ_PER_IMG) \
 	--batch_size $(BATCH_SIZE) --test_batch_size $(BATCH_SIZE) --learning_rate $(LEARNING_RATE) --lr_update $(LR_UPDATE) \
 	--save_checkpoint_from $(SAVE_CHECKPOINT_FROM) --num_chunks $(NUM_CHUNKS) \
-	--train_cached_tokens $(META_DIR)/$(TRAIN_DATASET)_train_ciderdf.pkl \
+	--train_cached_tokens $(META_DIR)/$(TRAIN_DATASET)_train_ciderdf_words.pkl \
 	--ss_k $(SS_K) --use_rl_after $(USE_RL_AFTER) --ss_max_prob $(SS_MAX_PROB) \
 	--use_rl $(USE_RL) --use_mixer $(USE_MIXER) --mixer_from $(MIXER_FROM) \
 	--use_cst $(USE_CST) --scb_captions $(SCB_CAPTIONS) --scb_baseline $(SCB_BASELINE) \

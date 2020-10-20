@@ -6,6 +6,7 @@ from .rouge.rouge import Rouge
 from .cider.cider import Cider
 from .spice.spice import Spice
 
+
 class COCOEvalCap:
     def __init__(self, coco, cocoRes):
         self.evalImgs = []

@@ -29,8 +29,8 @@ sys.path.append('cider')
 from pycocoevalcap.bleu.bleu import Bleu
 from pycocoevalcap.meteor.meteor import Meteor
 from pycocoevalcap.rouge.rouge import Rouge
-from pyciderevalcap.cider.cider import Cider
-from pyciderevalcap.ciderD.ciderD import CiderD
+from pycocoevalcap.cider.cider import Cider
+from pycocoevalcap.spice.spice import Spice
 
 logger = logging.getLogger(__name__)
 
@@ -133,9 +133,10 @@ def train(
             rl_training = True
             bcmr_scorer = {
                 'Bleu_4': Bleu(),
-                'CIDEr': CiderD(df=opt.train_cached_tokens),
+                'CIDEr': Cider(df=opt.train_cached_tokens),
                 'METEOR': Meteor(),
-                'ROUGE_L': Rouge()
+                'ROUGE_L': Rouge(),
+                'SPICE': Spice()
                 }[opt.eval_metric]
 
             #logger.info('loading gt refs: %s', train_loader.cocofmt_file)
@@ -413,7 +414,7 @@ def check_model(model, opt, infos, infos_history):
 
     if opt.eval_metric == 'MSRVTT':
         current_score = infos['Bleu_4'] + \
-            infos['METEOR'] + infos['ROUGE_L'] + infos['CIDEr']
+            infos['METEOR'] + infos['ROUGE_L'] + infos['CIDEr'] + infos['SPICE']
     else:
         current_score = infos[opt.eval_metric]
 
