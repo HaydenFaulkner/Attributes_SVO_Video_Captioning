@@ -9,13 +9,14 @@ Code for SAAT from ["Syntax-Aware Action Targeting for Video Captioning"](http:/
 * CUDA 10.0
 
 This repo includes an [edited version (`coco-caption`)](coco-caption) of the [Python 3 coco evaluation protocols](https://github.com/salaniz/pycocoevalcap) (edited to load CIDEr corpus)
-## Data
 
-Data can be downloaded [here](https://drive.google.com/drive/folders/1n0RITmiyb0vdInGNj4O7m661V7BrsSOO?usp=sharing) (1.6GB). This folder contains:
-* input/msrvtt: annotatated captions (note that `val_videodatainfo.json` is a symbolic link to `train_videodatainfo.json`)
-* output/feature: extracted features of IRv2, C3D and Category embeddings
-* output/metadata: preprocessed annotations
-* output/model_svo/xe: model file and generated captions on test videos, the reported result can be reproduced by the model provided in this folder (CIDEr 49.1 for XE training)
+## Data
+Data can be downloaded from my **Google Drive**:
+* [`datasets/msrvtt/features`](https://drive.google.com/drive/folders/1OOaCFWia2imwHCf4gXySLLVRJQCVaCav?usp=sharing)
+* [`datasets/msrvtt/metadata`](https://drive.google.com/drive/folders/1oFYKA1bVi0X1djF7XotbZOPWFf_QU9Bw?usp=sharing)
+* [`datasets/msvd/features`](https://drive.google.com/drive/folders/1JS3V8fwQySpfJ-Ob1eTs9WJ1b4UwNTwj?usp=sharing)
+* [`datasets/msvd/metadata`](https://drive.google.com/drive/folders/1HFrRVlt7Izn7Fzn1T_W8MoI3_Isl35bM?usp=sharing)
+* [`experiments`](https://drive.google.com/drive/folders/1XYgBaVkAQaSw6nQL-7dDAMItfqrgx2dE?usp=sharing)
 
 ## Test
 
