@@ -5,10 +5,10 @@ Code for SAAT from ["Syntax-Aware Action Targeting for Video Captioning"](http:/
 ## Dependencies
 
 * Python 3.6
-* Pytorch 1.1
+* PyTorch 1.1
 * CUDA 10.0
 
-This repo includes an edited version of the [Python 3 coco evaluation protocols](https://github.com/salaniz/pycocoevalcap) (edited to load CIDEr corpus)
+This repo includes an [edited version (`coco-caption`)](coco-caption) of the [Python 3 coco evaluation protocols](https://github.com/salaniz/pycocoevalcap) (edited to load CIDEr corpus)
 ## Data
 
 Data can be downloaded [here](https://drive.google.com/drive/folders/1n0RITmiyb0vdInGNj4O7m661V7BrsSOO?usp=sharing) (1.6GB). This folder contains:
