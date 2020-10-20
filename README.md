@@ -49,6 +49,6 @@ year = {2020}
 
 ### Acknowledgements
 
-* PYTorch implementation of [SAAT](https://github.com/SydCaption/SAAT)
+* PyTorch implementation of [SAAT](https://github.com/SydCaption/SAAT)
 * Pytorch implementation of [CST](https://github.com/mynlp/cst_captioning)
 * PyTorch implementation of  [SCST](https://github.com/ruotianluo/self-critical.pytorch)
