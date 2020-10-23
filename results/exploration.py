@@ -294,9 +294,9 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 	# make video
 	out = cv2.VideoWriter(os.path.join(out_dir, 'summary.mp4'), cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 30, (1920, 1080))
 
-	cntt = 0
-	for vid, diff in diffs:
-		cntt += 1
+	for vi, (vid, diff) in enumerate(diffs):
+		print("%d / %d" % (vi, len(diffs)))
+
 		boxes = boxes_h5[vid]
 
 		# organise gt caps
@@ -335,6 +335,8 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 		font_scale = 0.5
 		pad = 22
 
+		cv2.putText(frame, "VIDEO : %s" % vid, (1600, 20), 0, font_scale*1.2, (255, 255, 255))
+
 		# prediction cap
 		cv2.putText(frame, "PRED AVG", (1600, 520), 0, font_scale, (150, 150, 150))
 		cv2.putText(frame, "GT AVG", (1700, 520), 0, font_scale, (150, 150, 150))
@@ -356,12 +358,13 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 
 		# metric results
 		for i, (k, v) in enumerate(pred_scores.items()):
-			cv2.putText(frame, "%s" % k, (1600, 20+i*pad), 0, font_scale, (255, 255, 255))
-			cv2.putText(frame, "%.4f" % v, (1700, 20+i*pad), 0, font_scale, (0, 255, 0))
-			cv2.putText(frame, "%.4f" % gt_scores[k], (1800, 20+i*pad), 0, font_scale, (255, 255, 0))
+			cv2.putText(frame, "%s" % k, (1500, 320+i*pad), 0, font_scale, (150, 150, 150))
+			cv2.putText(frame, "%.4f" % v, (1600, 320+i*pad), 0, font_scale, (0, 255, 0))
+			cv2.putText(frame, "%.4f" % gt_scores[k], (1700, 320+i*pad), 0, font_scale, (255, 255, 0))
 
 		# prediction svo
-		cv2.putText(frame, "%s" % pr_svos[int(vid)], (1600, 400), 0, font_scale, (0, 255, 0))
+		cv2.putText(frame, "SVO", (1500, 50), 0, font_scale*1.2, (150, 150, 150))
+		cv2.putText(frame, "%s" % pr_svos[int(vid)], (1600, 50), 0, font_scale*1.2, (0, 255, 0))
 
 		cnt = 0
 		while cap.isOpened():
@@ -400,8 +403,8 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 				break
 		cap.release()
 
-		if cntt > 2:
-			break
+		# if vi > 2:
+		# 	break
 
 	out.release()
 
