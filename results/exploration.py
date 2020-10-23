@@ -3,6 +3,8 @@ import argparse
 import os
 import csv
 import json
+import h5py
+import cv2
 import spacy
 import sys
 import nltk
@@ -112,7 +114,7 @@ def gt_v_gt(gt_json, out_dir, scorers):
 		vid = gt_item['video_id']
 		gt_caps = gt_item['captions']
 
-		all_scores_dict[vid] = list()
+		all_scores_dict[vid] = {'groundtruths': list()}
 
 		# human evaluation best, worst, avg gt v gt
 		human_scores = dict()
@@ -134,7 +136,7 @@ def gt_v_gt(gt_json, out_dir, scorers):
 			else:
 				gt_csv_writer.writerow(['', i+1, gt_cap] + scores_list)
 
-			all_scores_dict[vid].append({'id': i, 'caption': gt_cap, 'scores': scores_dict})
+			all_scores_dict[vid]['groundtruths'].append({'id': i, 'caption': gt_cap, 'scores': scores_dict})
 
 		avg_human_scores = dict()
 		best_human_scores = dict()
@@ -153,6 +155,7 @@ def gt_v_gt(gt_json, out_dir, scorers):
 		gt_csv_writer.writerow(['', '', 'AVERAGE'] + scores_list)
 		summary += scores_list + ['']
 		all_scores.append(scores_list)
+		all_scores_dict[vid]['scores'] = avg_human_scores
 
 		scores_list = list()
 		for scorer_name in scorer_names:
@@ -264,6 +267,145 @@ def pr_v_gt(gt_json, pr_json, out_dir, scorers):
 		json.dump(all_scores_dict, f)
 
 
+def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json, gt_det_json, boxes_h5):
+
+	pr_svos = dict()
+	pr_atts = dict()
+	for v in pr_json['predictions']:
+		pr_svos[v['image_id']] = v['svo']
+		pr_atts[v['image_id']] = v['box_att']
+
+	# build avgs dicts and difference list
+	pr_avgs = dict()
+	gt_avgs = dict()
+	diffs = list()
+	for vid in pr_det_json.keys():
+		pred_scores = pr_det_json[vid]['scores']
+		pr_avgs[vid] = sum(list(pred_scores.values()))/len(pred_scores)
+
+		gt_scores = gt_det_json[vid]['scores']
+		gt_avgs[vid] = sum(list(gt_scores.values()))/len(gt_scores)
+
+		diffs.append([vid, gt_avgs[vid]-pr_avgs[vid]])
+
+	# sort biggest diffs (worst vids) first
+	diffs.sort(key=lambda x: x[1], reverse=True)
+
+	# make video
+	out = cv2.VideoWriter(os.path.join(out_dir, 'summary.mp4'), cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 30, (1920, 1080))
+
+	cntt = 0
+	for vid, diff in diffs:
+		cntt += 1
+		boxes = boxes_h5[vid]
+
+		# organise gt caps
+		gt_caps = pr_det_json[vid]['groundtruths']
+		gt_caps_human = gt_det_json[vid]['groundtruths']
+
+		gt_caps_list = list()
+		for i in range(len(gt_caps)):
+			assert gt_caps[i]['id'] == gt_caps_human[i]['id']
+			assert gt_caps[i]['caption'] == gt_caps_human[i]['caption']
+			pr_avg = sum(list(gt_caps[i]['scores'].values()))/len(gt_caps[i]['scores'])
+			gt_avg = sum(list(gt_caps_human[i]['scores'].values()))/len(gt_caps_human[i]['scores'])
+			gt_caps_list.append([gt_caps[i]['caption'], pr_avg, gt_avg, gt_avg-pr_avg])
+
+		gt_caps_list.sort(key=lambda x: x[3], reverse=True)
+
+		# load video
+		if dataset in ['msrvtt']:
+			cap = cv2.VideoCapture(os.path.join(clip_dir, 'video'+vid+'.mp4'))
+			total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+		else:
+			return NotImplementedError
+
+		if not cap.isOpened():
+			print("Error opening video stream or file")
+
+		# write on frame
+		frame = np.ones((1080, 1920, 3), dtype=np.uint8)*20
+		pred_cap = pr_det_json[vid]['predictions'][0]
+
+		pred_scores = pr_det_json[vid]['scores']
+		pred_scores_avg = sum(list(pr_det_json[vid]['scores'].values()))/len(pr_det_json[vid]['scores'])
+		gt_scores = gt_det_json[vid]['scores']
+		gt_scores_avg = sum(list(gt_det_json[vid]['scores'].values()))/len(gt_det_json[vid]['scores'])
+
+		font_scale = 0.5
+		pad = 22
+
+		# prediction cap
+		cv2.putText(frame, "PRED AVG", (1600, 520), 0, font_scale, (150, 150, 150))
+		cv2.putText(frame, "GT AVG", (1700, 520), 0, font_scale, (150, 150, 150))
+		cv2.putText(frame, "DIFF AVG", (1800, 520), 0, font_scale, (150, 150, 150))
+		cv2.putText(frame, pred_cap, (20, 520+pad), 0, font_scale*1.5, (0, 255, 0))
+		cv2.putText(frame, "%.4f" % pred_scores_avg, (1600, 520+pad), 0, font_scale, (0, 255, 0))
+		cv2.putText(frame, "%.4f" % gt_scores_avg, (1700, 520+pad), 0, font_scale, (0, 255, 0))
+		cv2.putText(frame, "%.2f" % (gt_scores_avg-pred_scores_avg), (1800, 520+pad), 0, font_scale, (0, 255, 0))
+
+		# ground truth caps
+		cv2.putText(frame, "PRED VS", (1600, 550+pad), 0, font_scale, (150, 150, 150))
+		cv2.putText(frame, "GT VS", (1700, 550+pad), 0, font_scale, (150, 150, 150))
+		cv2.putText(frame, "DIFF", (1800, 550+pad), 0, font_scale, (150, 150, 150))
+		for i, gt_cap in enumerate(gt_caps_list):
+			cv2.putText(frame, gt_cap[0], (20, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+			cv2.putText(frame, "%.4f" % gt_cap[1], (1600, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+			cv2.putText(frame, "%.4f" % gt_cap[2], (1700, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+			cv2.putText(frame, "%.2f" % gt_cap[3], (1800, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+
+		# metric results
+		for i, (k, v) in enumerate(pred_scores.items()):
+			cv2.putText(frame, "%s" % k, (1600, 20+i*pad), 0, font_scale, (255, 255, 255))
+			cv2.putText(frame, "%.4f" % v, (1700, 20+i*pad), 0, font_scale, (0, 255, 0))
+			cv2.putText(frame, "%.4f" % gt_scores[k], (1800, 20+i*pad), 0, font_scale, (255, 255, 0))
+
+		# prediction svo
+		cv2.putText(frame, "%s" % pr_svos[int(vid)], (1600, 400), 0, font_scale, (0, 255, 0))
+
+		cnt = 0
+		while cap.isOpened():
+			ret, vid_frame = cap.read()
+			if ret:
+				cnt += 1
+				vid_frame = cv2.cvtColor(vid_frame, cv2.COLOR_BGR2RGB)
+				height = 500
+				scale_percent = height / vid_frame.shape[0]
+				width = round(vid_frame.shape[1] * scale_percent)
+				vid_frame = cv2.resize(vid_frame, (width, height), interpolation=cv2.INTER_AREA)
+
+				# draw boxes
+				K = 10
+				for i, (bx, by, bw, bh) in enumerate(boxes):
+					if i >= K:
+						break
+					cv2.rectangle(vid_frame,
+								  (round((bx-(bw/2))*width), round((by-(bh/2))*height)),
+								  (round((bx+(bw/2))*width), round((by+(bh/2))*height)),
+								  (255-25*i, 255-15*i, 255-5*i),
+								  2)
+
+					vid_frame[round((by-(bh/2))*height)-15:round((by-(bh/2))*height), round((bx-(bw/2))*width):round((bx-(bw/2))*width)+50, :] = 0
+					cv2.putText(vid_frame,
+								"%.4f" % pr_atts[int(vid)][i],
+								(round((bx-(bw/2))*width), round((by-(bh/2))*height)-5),
+								0, font_scale*.8, (255-25*i, 255-15*i, 255))
+
+				left = 20 + int((890 - width) / 2)
+				frame[:500, left:left + width, :] = vid_frame
+
+				frame[500:510, left:left + int(width*(cnt/total)), :] = (0, 255, 0)
+				out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+			else:
+				break
+		cap.release()
+
+		if cntt > 2:
+			break
+
+	out.release()
+
+
 def main():
 	# Create the parser
 	arg_parser = argparse.ArgumentParser(description='Gether indepth information of datasets and predictions')
@@ -296,10 +438,19 @@ def main():
 	]
 
 	# Run Model Prediction Evaluations
-	pr_v_gt(gt_json, pr_json, args.out_dir, scorers)
+	# pr_v_gt(gt_json, pr_json, args.out_dir, scorers)
 
 	# Run Human Evaluations
-	gt_v_gt(gt_json, args.out_dir, scorers)
+	# gt_v_gt(gt_json, args.out_dir, scorers)
+
+	# Make Summary Video
+	gt_det_json = json.load(open(os.path.join(args.out_dir, 'gt_scores.json'), 'r'))
+	pr_det_json = json.load(open(os.path.join(args.out_dir, 'pr_scores.json'), 'r'))
+	clip_dir = '/media/hayden/Storage2/datasets/MSRVTT/videos'  # todo make general
+	bfeat_h5_file = os.path.join('datasets', dataset, 'features', dataset + '_roi_box.h5')
+	boxes_h5 = h5py.File(bfeat_h5_file, 'r')
+
+	make_summary_video(dataset, args.out_dir, clip_dir, pr_json, gt_json, pr_det_json, gt_det_json, boxes_h5)
 
 
 if __name__ == "__main__":
