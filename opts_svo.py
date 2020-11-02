@@ -6,6 +6,15 @@ def parse_opts():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        '--model_file',
+        type=str,
+        help='output model file')
+    parser.add_argument(
+        '--result_file',
+        type=str,
+        help='output result file')
+
+    parser.add_argument(
         '--train_label_h5',
         type=str,
         help='path to the h5file containing the preprocessed dataset')
@@ -66,17 +75,17 @@ def parse_opts():
     parser.add_argument(
         '--max_patience',
         type=int,
-        default=5,
+        default=50,
         help='max number of epoch to run since the minima is detected -- early stopping')
     parser.add_argument(
         '--batch_size',
         type=int,
-        default=128,
+        default=32, #128,
         help='Video batch size (there will be x seq_per_img sentences)')
     parser.add_argument(
         '--test_batch_size',
         type=int,
-        default=32,
+        default=16, # 32,
         help='what is the batch size in number of images per batch? (there will be x seq_per_img sentences)')
     parser.add_argument(
         '--train_seq_per_img',
@@ -93,8 +102,11 @@ def parse_opts():
         type=float,
         default=1e-4,
         help='learning rate')
-    parser.add_argument('--lr_update', default=50, type=int,
-                        help='Number of epochs to update the learning rate.')
+    parser.add_argument(
+        '--lr_update',
+        default=50,
+        type=int,
+        help='Number of epochs to update the learning rate.')
 
     # Model settings
     parser.add_argument(
@@ -129,7 +141,7 @@ def parse_opts():
     parser.add_argument(
         '--max_epochs',
         type=int,
-        default=sys.maxsize,
+        default=100,
         help='max number of epochs to run for (-1 = run forever)')
     parser.add_argument(
         '--grad_clip',
@@ -168,7 +180,7 @@ def parse_opts():
     parser.add_argument(
         '--save_checkpoint_from',
         type=int,
-        default=20,
+        default=1,
         help='Start saving checkpoint from this epoch')
     parser.add_argument(
         '--save_checkpoint_every',
@@ -184,7 +196,7 @@ def parse_opts():
     parser.add_argument(
         '--use_rl_after',
         type=int,
-        default=30,
+        default=0,  # 30
         help='Start RL training after this epoch')
     parser.add_argument(
         '--train_cached_tokens',
@@ -197,8 +209,6 @@ def parse_opts():
         default=1,
         help='To expand features when sampling (to multiple captions)')
 
-    parser.add_argument('--model_file', type=str, help='output model file')
-    parser.add_argument('--result_file', type=str, help='output result file')
     parser.add_argument(
         '--start_from',
         type=str,
@@ -283,7 +293,7 @@ def parse_opts():
     parser.add_argument(
         '--labda',
         type=float,
-        default=10,
+        default=12,
         help='Weights on svos over captions')
 
     parser.add_argument(
@@ -304,13 +314,13 @@ def parse_opts():
     parser.add_argument(
         '--ss_k',
         type=float,
-        default=30.0,
+        default=100,
         help='plot k/(k+exp(x/k)) from x=0 to 400, k=30')
 
     parser.add_argument(
         '--use_mixer',
         type=int,
-        default=1,
+        default=0, # 1
         help='Use schedule sampling')
     parser.add_argument(
         '--mixer_from',

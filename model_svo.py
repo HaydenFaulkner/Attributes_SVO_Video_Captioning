@@ -173,6 +173,7 @@ class CaptionModel(nn.Module):
         self.bos_index = 1  # index of the <bos> token
         self.ss_prob = 0
         self.mixer_from = 0
+        self.attention_record = list()
        
         self.embed = nn.Embedding(self.vocab_size, self.input_encoding_size)
         self.logit = nn.Linear(self.rnn_size, self.vocab_size)
@@ -244,6 +245,8 @@ class CaptionModel(nn.Module):
 
         b_att = torch.matmul(q_feats, k_feats.transpose(1, 2))/math.sqrt(q_feats.shape[-1])
         b_att = F.softmax(b_att, dim=-1)
+        att_rec = b_att.data.cpu().numpy()
+        self.attention_record = [np.mean(att_rec[i], axis=0) for i in range(len(att_rec))]
         b_rep = torch.matmul(b_att, v_feats)
         gb_rep = torch.cat((b_rep, torch.rand(b_rep.shape[0], 1, b_rep.shape[-1]).cuda()), 1) # generalized bb representation
 

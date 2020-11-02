@@ -15,6 +15,7 @@ import logging
 from datetime import datetime
 from six.moves import cPickle
 import gc
+import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
@@ -326,13 +327,9 @@ def validate(model, criterion, loader, opt):
             feats = [f[:last_batch_size] for f in feats]
             bfeats = [f[:last_batch_size] for f in bfeats]
             if loader.has_label:
-                labels = labels[
-                    :last_batch_size *
-                    seq_per_img]  # labels shape is DxN
+                labels = labels[:last_batch_size * seq_per_img]  # labels shape is DxN
                 masks = masks[:last_batch_size * seq_per_img]
-                labels_svo = labels_svo[
-                    :last_batch_size *
-                    seq_per_img]  # labels shape is DxN
+                labels_svo = labels_svo[:last_batch_size * seq_per_img]  # labels shape is DxN
 
         if torch.cuda.is_available():
             feats = [feat.cuda() for feat in feats]
@@ -363,9 +360,9 @@ def validate(model, criterion, loader, opt):
 
         for jj, (sent, sent_svo) in enumerate(zip(sents, sents_svo)):
             if opt.output_logp == 1:
-                entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'avglogp': test_avglogp[jj]}
+                entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'avglogp': test_avglogp[jj], 'box_att': model.attention_record[jj].tolist()}
             else:
-                entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}
+                entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'box_att': model.attention_record[jj].tolist()}
             predictions.append(entry)
             logger.debug('[%d] video %s: %s' %
                          (jj, entry['image_id'], entry['caption']))

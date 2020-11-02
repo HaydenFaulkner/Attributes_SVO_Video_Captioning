@@ -1,4 +1,4 @@
-# Syntax-Aware Action Targeting for Video Captioning
+# Extending - Syntax-Aware Action Targeting for Video Captioning
 
 Code for SAAT from ["Syntax-Aware Action Targeting for Video Captioning"](http://openaccess.thecvf.com/content_CVPR_2020/papers/Zheng_Syntax-Aware_Action_Targeting_for_Video_Captioning_CVPR_2020_paper.pdf) (Accepted to CVPR 2020). The implementation is based on ["Consensus-based Sequence Training for Video Captioning"](https://github.com/mynlp/cst_captioning).
 
@@ -19,23 +19,68 @@ Data can be downloaded from my **Google Drive**:
 * [`experiments`](https://drive.google.com/drive/folders/1XYgBaVkAQaSw6nQL-7dDAMItfqrgx2dE?usp=sharing)
 
 ## Test
+To test on MSVD run (~2mins):
+```bash
+pyhton test_svo.py --model_file experiments/msvd.pth
+                   --result_file experiments/msvd_test.json
+                   --test_label_h5 datasets/msvd/metadata/msvd_test_sequencelabel.h5
+                   --test_cocofmt_file datasets/msvd/metadata/msvd_test_cocofmt.json
+                   --test_feat_h5 datasets/msvd/features/msvd_test_resnet_mp1.h5 datasets/msvd/features/msvd_test_c3d_mp1.h5
+                   --bfeat_h5 datasets/msvd/features/msvd_roi_feat.h5 datasets/msvd/features/msvd_roi_box.h5
+                   --fr_size_h5 datasets/msvd/features/msvd_fr_size.h5
+```
 
+To test on MSRTVTT run (~5mins):
 ```bash
-make -f SpecifiedMakefile test [options]
+pyhton test_svo.py --model_file experiments/msrvtt.pth 
+                   --result_file experiments/msrvtt_test.json 
+                   --test_label_h5 datasets/msrvtt/metadata/msrvtt_test_sequencelabel.h5
+                   --test_cocofmt_file datasets/msrvtt/metadata/msrvtt_test_cocofmt.json
+                   --test_feat_h5 datasets/msrvtt/features/msrvtt_test_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_test_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_test_category_mp1.h5
+                   --bfeat_h5 datasets/msrvtt/features/msrvtt_roi_feat.h5 datasets/msrvtt/features/msrvtt_roi_box.h5
+                   --fr_size_h5 datasets/msrvtt/features/msrvtt_fr_size.h5
 ```
-Please refer to the Makefile (and opts_svo.py file) for the set of available train/test options. For example, to reproduce the reported result
-```bash
-make -f Makefile_msrvtt_svo test GID=0 EXP_NAME=xe FEATS="irv2 c3d category" BFEATS="roi_feat roi_box" USE_RL=0 CST=0 USE_MIXER=0 SCB_CAPTIONS=0 LOGLEVEL=DEBUG LAMBDA=20
-```
+
 
 ## Train
-
-To train the model using XE loss
+To train on MSVD run (~1hr for 100 epochs batch size 32):
 ```bash
-make -f Makefile_msrvtt_svo train GID=0 EXP_NAME=xe FEATS="irv2 c3d category" BFEATS="roi_feat roi_box" USE_RL=0 CST=0 USE_MIXER=0 SCB_CAPTIONS=0 LOGLEVEL=DEBUG MAX_EPOCH=100 LAMBDA=20
+pyhton train_svo.py --model_file experiments/msvd.pth
+                    --result_file experiments/msvd.json
+                    --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
+                    --val_label_h5 datasets/msvd/metadata/msvd_val_sequencelabel.h5
+                    --test_label_h5 datasets/msvd/metadata/msvd_test_sequencelabel.h5
+                    --train_cocofmt_file datasets/msvd/metadata/msvd_train_cocofmt.json
+                    --val_cocofmt_file datasets/msvd/metadata/msvd_val_cocofmt.json
+                    --test_cocofmt_file datasets/msvd/metadata/msvd_test_cocofmt.json
+                    --train_bcmrscores_pkl datasets/msvd/metadata/msvd_train_evalscores.pkl
+                    --train_feat_h5 datasets/msvd/features/msvd_train_resnet_mp1.h5 datasets/msvd/features/msvd_train_c3d_mp1.h5
+                    --val_feat_h5 datasets/msvd/features/msvd_val_resnet_mp1.h5 datasets/msvd/features/msvd_val_c3d_mp1.h5
+                    --test_feat_h5 datasets/msvd/features/msvd_test_resnet_mp1.h5 datasets/msvd/features/msvd_test_c3d_mp1.h5
+                    --bfeat_h5 datasets/msvd/features/msvd_roi_feat.h5 datasets/msvd/features/msvd_roi_box.h5
+                    --fr_size_h5 datasets/msvd/features/msvd_fr_size.h5
+                    --train_seq_per_img 17
+                    --test_seq_per_img 17
+                    --test_batch_size 8
 ```
 
-If you want to change the input features, modify the `FEATS` variable in above commands.
+To train on MSRTVTT run (~7hrs for 100 epochs batch size 32):
+```bash
+pyhton train_svo.py --model_file experiments/msrvtt.pth 
+                    --result_file experiments/msrvtt.json 
+                    --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
+                    --val_label_h5 datasets/msrvtt/metadata/msrvtt_val_sequencelabel.h5
+                    --test_label_h5 datasets/msrvtt/metadata/msrvtt_test_sequencelabel.h5
+                    --train_cocofmt_file datasets/msrvtt/metadata/msrvtt_train_cocofmt.json
+                    --val_cocofmt_file datasets/msrvtt/metadata/msrvtt_val_cocofmt.json
+                    --test_cocofmt_file datasets/msrvtt/metadata/msrvtt_test_cocofmt.json
+                    --train_bcmrscores_pkl datasets/msrvtt/metadata/msrvtt_train_evalscores.pkl
+                    --train_feat_h5 datasets/msrvtt/features/msrvtt_train_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_train_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_train_category_mp1.h5
+                    --val_feat_h5 datasets/msrvtt/features/msrvtt_val_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_val_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_val_category_mp1.h5
+                    --test_feat_h5 datasets/msrvtt/features/msrvtt_test_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_test_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_test_category_mp1.h5
+                    --bfeat_h5 datasets/msrvtt/features/msrvtt_roi_feat.h5 datasets/msrvtt/features/msrvtt_roi_box.h5
+                    --fr_size_h5 datasets/msrvtt/features/msrvtt_fr_size.h5
+```
 
 ### Citation
 ```
