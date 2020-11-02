@@ -12,7 +12,7 @@ from nltk import WordNetLemmatizer
 from nltk.stem import PorterStemmer
 import numpy as np
 import glob
-import pickle
+import pickle as pkl
 from autocorrect import Speller
 
 sys.path.append('coco-caption')
@@ -292,7 +292,7 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 	diffs.sort(key=lambda x: x[1], reverse=True)
 
 	# make video
-	out = cv2.VideoWriter(os.path.join(out_dir, 'summary.mp4'), cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 30, (1920, 1080))
+	out = cv2.VideoWriter(os.path.join(out_dir, dataset + '_summary.mp4'), cv2.VideoWriter_fourcc('m', 'p', '4', 'v'), 30, (1920, 1080))
 
 	for vi, (vid, diff) in enumerate(diffs):
 		print("%d / %d" % (vi, len(diffs)))
@@ -316,6 +316,11 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 		# load video
 		if dataset in ['msrvtt']:
 			cap = cv2.VideoCapture(os.path.join(clip_dir, 'video'+vid+'.mp4'))
+			total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+		if dataset in ['msvd']:
+			with open(os.path.join('datasets', 'msvd', 'youtube_id_to_video_mapping.pkl'), 'rb') as f:
+				mapping = pkl.load(f)
+			cap = cv2.VideoCapture(os.path.join(clip_dir, mapping['vid'+vid]+'.avi'))
 			total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 		else:
 			return NotImplementedError
@@ -351,10 +356,21 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 		cv2.putText(frame, "GT VS", (1700, 550+pad), 0, font_scale, (150, 150, 150))
 		cv2.putText(frame, "DIFF", (1800, 550+pad), 0, font_scale, (150, 150, 150))
 		for i, gt_cap in enumerate(gt_caps_list):
-			cv2.putText(frame, gt_cap[0], (20, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
-			cv2.putText(frame, "%.4f" % gt_cap[1], (1600, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
-			cv2.putText(frame, "%.4f" % gt_cap[2], (1700, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
-			cv2.putText(frame, "%.2f" % gt_cap[3], (1800, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+			if dataset == 'msrvtt' or i < 10:
+				cv2.putText(frame, gt_cap[0], (20, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "%.4f" % gt_cap[1], (1600, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "%.4f" % gt_cap[2], (1700, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "%.2f" % gt_cap[3], (1800, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+			elif i > len(gt_caps_list) - 10:
+				cv2.putText(frame, gt_cap[0], (20, 550+pad+(1+i-(len(gt_caps_list) - 20))*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "%.4f" % gt_cap[1], (1600, 550+pad+(1+i-(len(gt_caps_list) - 20))*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "%.4f" % gt_cap[2], (1700, 550+pad+(1+i-(len(gt_caps_list) - 20))*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "%.2f" % gt_cap[3], (1800, 550+pad+(1+i-(len(gt_caps_list) - 20))*pad), 0, font_scale, (255, 255, 0))
+			elif i == 10:
+				cv2.putText(frame, '......', (20, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "......", (1600, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "......", (1700, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
+				cv2.putText(frame, "......", (1800, 550+pad+(1+i)*pad), 0, font_scale, (255, 255, 0))
 
 		# metric results
 		for i, (k, v) in enumerate(pred_scores.items()):
@@ -394,7 +410,7 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 								(round((bx-(bw/2))*width), round((by-(bh/2))*height)-5),
 								0, font_scale*.8, (255-25*i, 255-15*i, 255))
 
-				left = 20 + int((890 - width) / 2)
+				left = 20 + int((1300 - width) / 2)
 				frame[:500, left:left + width, :] = vid_frame
 
 				frame[500:510, left:left + int(width*(cnt/total)), :] = (0, 255, 0)
@@ -402,7 +418,7 @@ def make_summary_video(dataset, out_dir, clip_dir, pr_json, gt_json, pr_det_json
 			else:
 				break
 		cap.release()
-
+		#
 		# if vi > 2:
 		# 	break
 
@@ -424,7 +440,11 @@ def main():
 	# Setup paths and vars
 	dataset = args.dataset
 	split = args.split
-	pr_json_path = os.path.join('results', 'irv2c3dcategory_msrvtt_concat_CIDEr_32_0.0001_20_test.json')
+	args.out_dir = os.path.join(args.out_dir, dataset)
+	if dataset in ['msrvtt']:
+		pr_json_path = os.path.join('results', 'irv2c3dcategory_msrvtt_concat_CIDEr_32_0.0001_20_test.json')
+	elif dataset in ['msvd']:
+		pr_json_path = os.path.join('results', 'resnetc3d_msvd_concat_CIDEr_8_0.0001_12_test.json')
 	gt_json_path = os.path.join('datasets', dataset, 'metadata', dataset+'_'+split+'_proprocessedtokens.json')
 
 	# Load the JSON files
@@ -436,7 +456,7 @@ def main():
 		(Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
 		(Meteor(), "METEOR"),
 		(Rouge(), "ROUGE_L"),
-		(Cider(df=os.path.join('datasets', dataset, 'metadata', dataset+'_train_ciderdf_words.pkl')), "CIDEr"),
+		(Cider(df=os.path.join('datasets', dataset, 'metadata', dataset+'_train_ciderdf.pkl')), "CIDEr"),  # todo msvd cider 0 cause of the pkl not being keyed on words
 		(Spice(), "SPICE")
 	]
 
@@ -449,7 +469,10 @@ def main():
 	# Make Summary Video
 	gt_det_json = json.load(open(os.path.join(args.out_dir, 'gt_scores.json'), 'r'))
 	pr_det_json = json.load(open(os.path.join(args.out_dir, 'pr_scores.json'), 'r'))
-	clip_dir = '/media/hayden/Storage2/datasets/MSRVTT/videos'  # todo make general
+	if dataset == 'msrvtt':
+		clip_dir = '/media/hayden/Storage2/datasets/MSRVTT/videos'
+	elif dataset == 'msvd':
+		clip_dir = '/media/hayden/Storage2/datasets/MSVD/videos'
 	bfeat_h5_file = os.path.join('datasets', dataset, 'features', dataset + '_roi_box.h5')
 	boxes_h5 = h5py.File(bfeat_h5_file, 'r')
 
