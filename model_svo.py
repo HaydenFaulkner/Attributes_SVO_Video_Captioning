@@ -174,35 +174,48 @@ class CaptionModel(nn.Module):
         self.ss_prob = 0
         self.mixer_from = 0
         self.attention_record = list()
-       
-        self.embed = nn.Embedding(self.vocab_size, self.input_encoding_size)
-        self.logit = nn.Linear(self.rnn_size, self.vocab_size)
+
+        self.embed = nn.Embedding(self.vocab_size, self.input_encoding_size)  # word embedding layer (1-hot -> enc)
+        self.logit = nn.Linear(self.rnn_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
         self.dropout = nn.Dropout(self.drop_prob_lm)
-  
+
         self.l2a_layer = nn.Linear(self.input_encoding_size, self.att_size)
         self.h2a_layer = nn.Linear(self.rnn_size, self.att_size)
         self.att_layer = nn.Linear(self.att_size, 1)
-       
+
         self.init_weights()
         if self.model_type == 'standard':
             self.feat_pool = FeatPool(self.feat_dims[0:1], self.num_layers * self.rnn_size, self.drop_prob_lm)
         else:
             self.feat_pool = FeatPool(self.feat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm)
 
-            self.bfeat_pool_q = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
-            self.bfeat_pool_k = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
-            self.bfeat_pool_v = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
+            # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
+            self.bfeat_pool_q = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+                                         SQUEEZE=False)
+            self.bfeat_pool_k = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+                                         SQUEEZE=False)
+            self.bfeat_pool_v = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+                                         SQUEEZE=False)
 
-            self.feat_pool_ds = FeatPool(self.feat_dims[0:1], self.num_layers * 2*self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
-            self.feat_pool_do = FeatPool([self.feat_dims[0], self.input_encoding_size], self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
-            self.feat_pool_dv = FeatPool([self.feat_dims[1], self.input_encoding_size], self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
-            self.feat_pool_f2h = FeatPool([2*self.rnn_size], self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
+            # encode the visual features (linear>relu>dropout)
+            # 2d cnn -> subject 1536>1024 and 4096>1024
+            self.feat_pool_ds = FeatPool(self.feat_dims[0:1], self.num_layers * 2 * self.rnn_size, self.drop_prob_lm,
+                                         SQUEEZE=False)
+            # 2d cnn and verb enc feat -> object .. 1536>512 and 512>512
+            self.feat_pool_do = FeatPool([self.feat_dims[0], self.input_encoding_size], self.num_layers * self.rnn_size,
+                                         self.drop_prob_lm, SQUEEZE=False)
+            # 3d cnn and subject enc feat -> verb .. 4096>512 and 512>512
+            self.feat_pool_dv = FeatPool([self.feat_dims[1], self.input_encoding_size], self.num_layers * self.rnn_size,
+                                         self.drop_prob_lm, SQUEEZE=False)
+
+            self.feat_pool_f2h = FeatPool([2 * self.rnn_size], self.num_layers * self.rnn_size, self.drop_prob_lm,
+                                          SQUEEZE=False)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
 
         self.video_encoding_size = self.num_feats * self.num_layers * self.rnn_size
         opt.video_encoding_size = self.video_encoding_size
-        self.core = RNNUnit(opt)
+        self.core = RNNUnit(opt)  # the caption generation rnn LSTM(512) with input size 2048
 
         if self.model_type == 'manet':
             self.manet = MANet(self.video_encoding_size, self.rnn_size, self.num_feats)
@@ -211,14 +224,14 @@ class CaptionModel(nn.Module):
         self.ss_prob = p
 
     def set_mixer_from(self, t):
-        """Set values of mixer_from 
+        """Set values of mixer_from
         if mixer_from > 0 then start MIXER training
         i.e:
         from t = 0 -> t = mixer_from -1: use XE training
         from t = mixer_from -> end: use RL training
         """
         self.mixer_from = t
-        
+
     def set_seq_per_img(self, x):
         self.seq_per_img = x
         self.feat_expander.set_n(x)
@@ -239,73 +252,104 @@ class CaptionModel(nn.Module):
             return Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_())
 
     def _svo_step(self, feats, bfeats, pos=None, expand_feat=1):
+        # encode the box features with linear->relu->dropout layer into query, key, value feats
         q_feats = self.bfeat_pool_q(bfeats)
         k_feats = self.bfeat_pool_k(bfeats)
         v_feats = self.bfeat_pool_v(bfeats)
 
-        b_att = torch.matmul(q_feats, k_feats.transpose(1, 2))/math.sqrt(q_feats.shape[-1])
+        # use the query and key encodings to calculate self-attention weights
+        b_att = torch.matmul(q_feats, k_feats.transpose(1, 2)) / math.sqrt(q_feats.shape[-1])
         b_att = F.softmax(b_att, dim=-1)
+
+        # record the attention weights, used for visualisation purposes
         att_rec = b_att.data.cpu().numpy()
         self.attention_record = [np.mean(att_rec[i], axis=0) for i in range(len(att_rec))]
-        b_rep = torch.matmul(b_att, v_feats)
-        gb_rep = torch.cat((b_rep, torch.rand(b_rep.shape[0], 1, b_rep.shape[-1]).cuda()), 1) # generalized bb representation
 
+        # apply the box attention to the value encodings
+        b_rep = torch.matmul(b_att, v_feats)
+
+        # generalized bb representation
+        gb_rep = torch.cat((b_rep, torch.rand(b_rep.shape[0], 1, b_rep.shape[-1]).cuda()), 1)
+
+        ################### SUBJECT ###################
+        # encode the subject features
         dec_feat_s = self.feat_pool_ds(feats[0:1])
 
-        s_att = torch.matmul(dec_feat_s, gb_rep.transpose(1, 2))/math.sqrt(dec_feat_s.shape[-1])
+        # use the 2D CNN and box encodings to generate attention for the global box reps
+        s_att = torch.matmul(dec_feat_s, gb_rep.transpose(1, 2)) / math.sqrt(dec_feat_s.shape[-1])
         s_att = F.softmax(s_att, -1)
-        s_rep = torch.matmul(s_att, gb_rep)
+        s_rep = torch.matmul(s_att, gb_rep)  # apply the att
         if expand_feat:
-            s_rep = self.feat_expander(s_rep.squeeze(1)).unsqueeze(1) # [seq_im * batch, 1, d]
+            s_rep = self.feat_expander(s_rep.squeeze(1)).unsqueeze(1)  # [seq_im * batch, 1, d]
+
+        # encode the subject rep with a hidden layer
         s_hid = self.feat_pool_f2h([s_rep])
+        # encode to logits and apply softmax to get word probabilities
         s_out = F.log_softmax(self.logit(s_hid), dim=-1)
+        # argmax the subject
         s_it = F.softmax(self.logit(s_hid), dim=-1).argmax(-1)
 
+        ################### VERB ###################
         if expand_feat:
-            feat_v_exp = self.feat_expander(feats[1].squeeze(1)).unsqueeze(1) # [seq_im * batch, d]
+            feat_v_exp = self.feat_expander(feats[1].squeeze(1)).unsqueeze(1)  # [seq_im * batch, d]
         else:
             feat_v_exp = feats[1].clone()
+
+        # encode the verb feature and the subject word embedding
         if self.training and pos is not None:
-            dec_feat_v = self.feat_pool_dv([feat_v_exp, self.embed(pos[:,0]).unsqueeze(1)])
+            dec_feat_v = self.feat_pool_dv([feat_v_exp, self.embed(pos[:, 0]).unsqueeze(1)])
         else:
             dec_feat_v = self.feat_pool_dv([feat_v_exp, self.embed(s_it.squeeze(1)).unsqueeze(1)])
+
+        # encode the verb rep with a hidden layer
         v_hid = self.feat_pool_f2h([dec_feat_v])
+        # encode to logits and apply softmax to get word probabilities
         v_out = F.log_softmax(self.logit(v_hid), dim=-1)
+        # argmax the verb
         v_it = F.softmax(self.logit(v_hid), dim=-1).argmax(-1)
 
+        ################### OBJECT ###################
         if expand_feat:
-            feat_o_exp = self.feat_expander(feats[0].squeeze(1)).unsqueeze(1) 
+            feat_o_exp = self.feat_expander(feats[0].squeeze(1)).unsqueeze(1)
         else:
             feat_o_exp = feats[0].clone()
 
-        if self.training and pos is not None: 
-            dec_feat_o = self.feat_pool_do([feat_o_exp, self.embed(pos[:,1]).unsqueeze(1)])
+        # encode the object feature and the verb word embedding
+        if self.training and pos is not None:
+            dec_feat_o = self.feat_pool_do([feat_o_exp, self.embed(pos[:, 1]).unsqueeze(1)])
         else:
             dec_feat_o = self.feat_pool_do([feat_o_exp, self.embed(v_it.squeeze(1)).unsqueeze(1)])
 
+        # calculate attention over the box features based on the word emb
         if expand_feat:
-            o_att = torch.matmul(dec_feat_o, self.feat_expander(gb_rep).transpose(1, 2))/math.sqrt(dec_feat_o.shape[-1])
+            o_att = torch.matmul(dec_feat_o, self.feat_expander(gb_rep).transpose(1, 2)) / math.sqrt(
+                dec_feat_o.shape[-1])
         else:
-            o_att = torch.matmul(dec_feat_o, gb_rep.transpose(1, 2))/math.sqrt(dec_feat_o.shape[-1])
+            o_att = torch.matmul(dec_feat_o, gb_rep.transpose(1, 2)) / math.sqrt(dec_feat_o.shape[-1])
 
         o_att = F.softmax(o_att, -1)
         if expand_feat:
             o_rep = torch.matmul(o_att, self.feat_expander(gb_rep))
         else:
             o_rep = torch.matmul(o_att, gb_rep)
+
+        # encode the object rep with a hidden layer
         o_hid = self.feat_pool_f2h([o_rep])
+        # encode to logits and apply softmax to get word probabilities
         o_out = F.log_softmax(self.logit(o_hid), dim=-1)
+        # argmax the object
         o_it = F.softmax(self.logit(o_hid), dim=-1).argmax(-1)
 
-        return torch.cat((s_out, v_out, o_out), dim=1), torch.cat((s_it, v_it, o_it), dim=1) 
-
+        return torch.cat((s_out, v_out, o_out), dim=1), torch.cat((s_it, v_it, o_it), dim=1)
 
     def forward(self, feats, bfeats, seq, pos):
         fc_feats = self.feat_pool(feats)
         fc_feats = self.feat_expander(fc_feats)
 
+        # get the svo features and vocab indexs
         svo_out, svo_it = self._svo_step(feats, bfeats, pos)
 
+        ########### RNN ###########
         batch_size = fc_feats.size(0)
         state = self.init_hidden(batch_size)
         outputs = []
@@ -318,7 +362,7 @@ class CaptionModel(nn.Module):
         end_i = seq.size(1) - 1
 
         for token_idx in range(start_i, end_i):
-            if token_idx == -1:
+            if token_idx == -1:  # initially set xt as global feats
                 xt = fc_feats
             else:
                 # token_idx = 0 corresponding to the <BOS> token
@@ -349,38 +393,44 @@ class CaptionModel(nn.Module):
                     sample_seq.append(it.data)
                     logprobs = outputs[-1].gather(1, it.unsqueeze(1))
                     sample_logprobs.append(logprobs.view(-1))
-                
+
                 # break if all the sequences end, which requires EOS token = 0
                 if it.data.sum() == 0:
                     break
-                
+
+                # get word embedding for the verb
                 if self.training:
-                    lan_cont = self.embed(torch.cat((pos[:,1:2], it.unsqueeze(1)), 1))
+                    lan_cont = self.embed(torch.cat((pos[:, 1:2], it.unsqueeze(1)), 1))
                 else:
-                    lan_cont = self.embed(torch.cat((svo_it[:,1:2], it.unsqueeze(1)), 1))
-                hid_cont = state[0].transpose(0,1).expand(lan_cont.shape[0], 2, state[0].shape[2])
-                alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont)+self.h2a_layer(hid_cont)))
+                    lan_cont = self.embed(torch.cat((svo_it[:, 1:2], it.unsqueeze(1)), 1))
+
+                hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
+                # calculate attention on encodings of the verb embedding and the RNN hidden state
+                alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
                 alpha = F.softmax(alpha, dim=1).transpose(1, 2)
+                # apply the attention to the verb word embedding
                 xt = torch.matmul(alpha, lan_cont).squeeze(1)
-                
+
+            # generate next word
             if self.model_type == 'standard':
                 output, state = self.core(xt, state)
             else:
                 if self.model_type == 'manet':
                     fc_feats = self.manet(fc_feats, state[0])
                 output, state = self.core(torch.cat([xt, fc_feats], 1), state)
-                
+
+            # generate the word softmax
             if token_idx >= 0:
                 output = F.log_softmax(self.logit(self.dropout(output)), dim=1)
                 outputs.append(output)
-        
+
         # only returns outputs of seq input
         # output size is: B x L x V (where L is truncated lengths
         # which are different for different batch)
         return torch.cat([_.unsqueeze(1) for _ in outputs], 1), \
-                torch.cat([_.unsqueeze(1) for _ in sample_seq], 1), \
-                torch.cat([_.unsqueeze(1) for _ in sample_logprobs], 1), \
-                svo_out, svo_it, svo_out.gather(2, svo_it.unsqueeze(2)).squeeze(2)
+               torch.cat([_.unsqueeze(1) for _ in sample_seq], 1), \
+               torch.cat([_.unsqueeze(1) for _ in sample_logprobs], 1), \
+               svo_out, svo_it, svo_out.gather(2, svo_it.unsqueeze(2)).squeeze(2)
 
     def sample(self, feats, bfeats, pos, opt={}):
         sample_max = opt.get('sample_max', 1)
