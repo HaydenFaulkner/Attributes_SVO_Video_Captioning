@@ -1,7 +1,7 @@
-import sys
 import argparse
 
 
+# set for MSR-VTT defaults
 def parse_opts():
     parser = argparse.ArgumentParser()
 
@@ -70,7 +70,12 @@ def parse_opts():
         '--train_bcmrscores_pkl',
         type=str,
         help='Pre-computed Cider-D metric for all captions')
-    
+
+    parser.add_argument(
+        '--train_cached_tokens',
+        type=str,
+        help='Path to idx document frequencies to cal Cider on training data')
+
     # Optimization: General
     parser.add_argument(
         '--max_patience',
@@ -80,12 +85,12 @@ def parse_opts():
     parser.add_argument(
         '--batch_size',
         type=int,
-        default=32, #128,
+        default=64,
         help='Video batch size (there will be x seq_per_img sentences)')
     parser.add_argument(
         '--test_batch_size',
         type=int,
-        default=16, # 32,
+        default=64,
         help='what is the batch size in number of images per batch? (there will be x seq_per_img sentences)')
     parser.add_argument(
         '--train_seq_per_img',
@@ -104,7 +109,7 @@ def parse_opts():
         help='learning rate')
     parser.add_argument(
         '--lr_update',
-        default=50,
+        default=200,
         type=int,
         help='Number of epochs to update the learning rate.')
 
@@ -141,7 +146,7 @@ def parse_opts():
     parser.add_argument(
         '--max_epochs',
         type=int,
-        default=100,
+        default=200,
         help='max number of epochs to run for (-1 = run forever)')
     parser.add_argument(
         '--grad_clip',
@@ -198,11 +203,6 @@ def parse_opts():
         type=int,
         default=0,  # 30
         help='Start RL training after this epoch')
-    parser.add_argument(
-        '--train_cached_tokens',
-        type=str,
-        default=30,
-        help='Path to idx document frequencies to cal Cider on training data')
     parser.add_argument(
         '--expand_feat',
         type=int,
@@ -284,7 +284,14 @@ def parse_opts():
             'manet',
             ],
         help='Type of models')
-    
+
+    parser.add_argument(
+        '--pass_all_svo',
+        type=int,
+        default=0,
+        choices=[0,1],
+        help='Pass all s,v,o to the LSTM cap gen, or just v')
+
     parser.add_argument(
         '--beam_size',
         type=int,
@@ -293,7 +300,7 @@ def parse_opts():
     parser.add_argument(
         '--labda',
         type=float,
-        default=12,
+        default=20.0,
         help='Weights on svos over captions')
 
     parser.add_argument(
@@ -357,7 +364,7 @@ def parse_opts():
     parser.add_argument(
         '--scb_captions',
         type=int,
-        default=20,
+        default=0,
         help='-1: annealing, otherwise using this fixed number to be the number of captions to compute SCB')
     parser.add_argument(
         '--use_eos',
