@@ -6,6 +6,15 @@ def parse_opts():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        '--exp_type',
+        type=str,
+        default='default',
+        choices=[
+            'default',
+            'transformer01'],
+        help='Type of experiment')
+
+    parser.add_argument(
         '--model_file',
         type=str,
         help='output model file')

@@ -4,7 +4,8 @@
 <h3><code><a href="my_defaults">my_defaults</a></code></h3>
 To train MSVD:
 <pre>
-python train_svo.py --model_file experiments/my_defaults/msvd.pth
+python train_svo.py --exp_type default
+                    --model_file experiments/my_defaults/msvd.pth
                     --result_file experiments/my_defaults/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
                     --val_label_h5 datasets/msvd/metadata/msvd_val_sequencelabel.h5
@@ -29,7 +30,8 @@ python train_svo.py --model_file experiments/my_defaults/msvd.pth
 
 To train MSRVTT:
 <pre>
-python train_svo.py --model_file experiments/my_defaults/msrvtt.pth
+python train_svo.py --exp_type default
+                    --model_file experiments/my_defaults/msrvtt.pth
                     --result_file experiments/my_defaults/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
                     --val_label_h5 datasets/msrvtt/metadata/msrvtt_val_sequencelabel.h5
@@ -47,7 +49,7 @@ python train_svo.py --model_file experiments/my_defaults/msrvtt.pth
                     --train_seq_per_img 20
                     --test_seq_per_img 20
                     --batch_size 64
-                    --test_batch_size 64
+                    --test_batch_size 32
                     --max_epochs 200
                     --labda 20.0
 </pre>

@@ -19,6 +19,8 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
+from model_concepts import CaptionModelConcepts as ConceptsCaptionModel
+from model_concepts import CaptionModelSVO as SVOCaptionModel
 
 import utils
 import opts_svo as opts
@@ -35,10 +37,12 @@ from pycocoevalcap.spice.spice import Spice
 
 logger = logging.getLogger(__name__)
 
+
 def memReport():
     for obj in gc.get_objects():
         if torch.is_tensor(obj):
             print(type(obj), obj.size())
+
 
 def cpuStats():
         print(sys.version)
@@ -48,7 +52,8 @@ def cpuStats():
         py = psutil.Process(pid)
         memoryUse = py.memory_info()[0] / 2. ** 30  # memory use in GB...I think
         print('memory GB:', memoryUse)
-    
+
+
 def language_eval(predictions, cocofmt_file, opt):
     logger.info('>>> Language evaluating ...')
     tmp_checkpoint_json = os.path.join(
@@ -59,14 +64,7 @@ def language_eval(predictions, cocofmt_file, opt):
     return lang_stats
 
 
-def train(
-        model,
-        criterion,
-        optimizer,
-        train_loader,
-        val_loader,
-        opt,
-        rl_criterion=None):
+def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criterion=None):
 
     infos = {'iter': 0,
              'epoch': 0,
@@ -227,11 +225,12 @@ def train(
         loss.backward()
         clip_grad_norm_(model.parameters(), opt.grad_clip)
         optimizer.step()
-        #memReport()
+        # memReport()
         del pred, feats, labels, masks, labels_svo
         torch.cuda.empty_cache()
 
         infos['TrainLoss'] = loss.item()
+        infos['SVOTrainLoss'] = loss_svo.item()
         infos['mixer_from'] = mixer_from
         infos['scb_captions'] = scb_captions
 
@@ -240,7 +239,8 @@ def train(
 
             log_info = [('Epoch', infos['epoch']),
                         ('Iter', infos['iter']),
-                        ('Loss', infos['TrainLoss'])]
+                        ('Loss', infos['TrainLoss']),
+                        ('SVO Loss', infos['SVOTrainLoss'])]
 
             if rl_training:
                 log_info += [('Reward', np.mean(reward[:, 0])),
@@ -269,7 +269,7 @@ def train(
                 opt, optimizer, infos['epoch'] - infos['start_epoch'])
             logger.info('===> Learning rate: %f: ', learning_rate)
 
-        #checkpoint_checked = False
+        # checkpoint_checked = False
         if (infos['epoch'] >= opt.save_checkpoint_from and
                 infos['epoch'] % opt.save_checkpoint_every == 0 and
                 not checkpoint_checked):
@@ -341,7 +341,7 @@ def validate(model, criterion, loader, opt):
 
         if loader.has_label:
             pred, gt_seq, gt_logseq, _, _, _ = model(feats, bfeats, labels, labels_svo)
-            #memReport()
+            # memReport()
             if opt.output_logp == 1:
                 gt_avglogp = utils.compute_avglogp(gt_seq, gt_logseq.data)
                 gt_avglogps.extend(gt_avglogp)
@@ -362,10 +362,9 @@ def validate(model, criterion, loader, opt):
             if opt.output_logp == 1:
                 entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'avglogp': test_avglogp[jj], 'box_att': model.attention_record[jj].tolist()}
             else:
-                entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'box_att': model.attention_record[jj].tolist()}
+                entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
             predictions.append(entry)
-            logger.debug('[%d] video %s: %s' %
-                         (jj, entry['image_id'], entry['caption']))
+            logger.debug('[%d] video %s: %s' % (jj, entry['image_id'], entry['caption']))
         del feats, labels, masks, labels_svo, seq, logseq
         torch.cuda.empty_cache()
     loss = round(loss_sum / num_iters, 3)
@@ -421,12 +420,7 @@ def check_model(model, opt, infos, infos_history):
         infos['best_iter'] = infos['iter']
         infos['best_epoch'] = infos['epoch']
 
-        logger.info(
-            '>>> Found new best [%s] score: %f, at iter: %d, epoch %d',
-            opt.eval_metric,
-            current_score,
-            infos['iter'],
-            infos['epoch'])
+        logger.info('>>> Found new best [%s] score: %f, at iter: %d, epoch %d', opt.eval_metric, current_score, infos['iter'], infos['epoch'])
 
         torch.save({'model': model.state_dict(),
                     'infos': infos,
@@ -445,19 +439,16 @@ def check_model(model, opt, infos, infos_history):
         json.dump(infos_history, of)
     logger.info('Updated history to: %s', opt.history_file)
 
+
 if __name__ == '__main__':
 
     opt = opts.parse_opts()
 
-    logging.basicConfig(level=getattr(logging, opt.loglevel.upper()),
+    logging.basicConfig(filename=opt.model_file.replace('.pth', '.log', 1),
+                        filemode='a',level=getattr(logging, opt.loglevel.upper()),
                         format='%(asctime)s:%(levelname)s: %(message)s')
 
-    logger.info(
-        'Input arguments: %s',
-        json.dumps(
-            vars(opt),
-            sort_keys=True,
-            indent=4))
+    logger.info('Input arguments: %s', json.dumps(vars(opt), sort_keys=True, indent=4))
 
     # Set the random seed manually for reproducibility.
     np.random.seed(opt.seed)
@@ -512,7 +503,10 @@ if __name__ == '__main__':
     opt.history_file = opt.model_file.replace('.pth', '_history.json', 1)
 
     logger.info('Building model...')
-    model = CaptionModel(opt)
+    if opt.exp_type in ['default']:
+        model = SVOCaptionModel(opt)
+    elif opt.exp_type in ['transformer01']:
+        model = ConceptsCaptionModel(opt)
 
     xe_criterion = CrossEntropyCriterion()
     rl_criterion = RewardCriterion()
@@ -526,20 +520,10 @@ if __name__ == '__main__':
     start = datetime.now()
 
     optimizer = optim.Adam(model.parameters(), lr=opt.learning_rate)
-    infos = train(
-        model,
-        xe_criterion,
-        optimizer,
-        train_loader,
-        val_loader,
-        opt,
-        rl_criterion=rl_criterion)
-    logger.info(
-        'Best val %s score: %f. Best iter: %d. Best epoch: %d',
-        opt.eval_metric,
-        infos['best_score'],
-        infos['best_iter'],
-        infos['best_epoch'])
+
+    infos = train(model, xe_criterion, optimizer, train_loader, val_loader, opt, rl_criterion=rl_criterion)
+
+    logger.info('Best val %s score: %f. Best iter: %d. Best epoch: %d', opt.eval_metric, infos['best_score'], infos['best_iter'], infos['best_epoch'])
 
     logger.info('Training time: %s', datetime.now() - start)
 
