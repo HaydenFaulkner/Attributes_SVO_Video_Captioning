@@ -150,6 +150,52 @@ class MANet(nn.Module):
         return x * att_weight
 
 
+
+
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model, dropout=0.1, max_len=5000):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
+
+# TODO make a box enc to FIRST cat then encode, rather than encode then cat
+# class BoxEnc(nn.Module):
+#     def __init__(self, feat_dims, out_size, dropout, SQUEEZE=True):
+#         super(BoxEnc, self).__init__()
+#         self.squeeze = SQUEEZE
+#         module_list = []
+#         for dim in feat_dims:
+#             module = nn.Sequential(
+#                 nn.Linear(dim, out_size),
+#                 nn.ReLU(),
+#                 nn.Dropout(dropout))
+#             module_list += [module]
+#         self.feat_list = nn.ModuleList(module_list)
+#
+#
+#     def forward(self, feats):
+#         """
+#         feats is a list, each element is a tensor that have size (N x C x F)
+#         at the moment assuming that C == 1
+#         """
+#         if self.squeeze:
+#             out = torch.cat([m(feats[i].squeeze(1)) for i, m in enumerate(self.feat_list)], 1)
+#         else:
+#             out = torch.cat([m(feats[i]) for i, m in enumerate(self.feat_list)], 2)
+#         return out
+
 class CaptionModelSVO(nn.Module):
     """
     Allow S V and O to be put into LTSM when --pass_all_svo is set to 1
@@ -175,15 +221,15 @@ class CaptionModelSVO(nn.Module):
         self.ss_prob = 0
         self.mixer_from = 0
         self.attention_record = list()
-       
+
         self.embed = nn.Embedding(self.vocab_size, self.input_encoding_size)  # word embedding layer (1-hot -> enc)
         self.logit = nn.Linear(self.rnn_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
         self.dropout = nn.Dropout(self.drop_prob_lm)
-  
+
         self.l2a_layer = nn.Linear(self.input_encoding_size, self.att_size)
         self.h2a_layer = nn.Linear(self.rnn_size, self.att_size)
         self.att_layer = nn.Linear(self.att_size, 1)
-       
+
         self.init_weights()
         if self.model_type == 'standard':
             self.feat_pool = FeatPool(self.feat_dims[0:1], self.num_layers * self.rnn_size, self.drop_prob_lm)
@@ -191,19 +237,26 @@ class CaptionModelSVO(nn.Module):
             self.feat_pool = FeatPool(self.feat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm)
 
             # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
-            self.bfeat_pool_q = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
-            self.bfeat_pool_k = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
-            self.bfeat_pool_v = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
+            self.bfeat_pool_q = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+                                         SQUEEZE=False)
+            self.bfeat_pool_k = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+                                         SQUEEZE=False)
+            self.bfeat_pool_v = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+                                         SQUEEZE=False)
 
             # encode the visual features (linear>relu>dropout)
             # 2d cnn -> subject 1536>1024 and 4096>1024
-            self.feat_pool_ds = FeatPool(self.feat_dims[0:1], self.num_layers * 2*self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
+            self.feat_pool_ds = FeatPool(self.feat_dims[0:1], self.num_layers * 2 * self.rnn_size, self.drop_prob_lm,
+                                         SQUEEZE=False)
             # 2d cnn and verb enc feat -> object .. 1536>512 and 512>512
-            self.feat_pool_do = FeatPool([self.feat_dims[0], self.input_encoding_size], self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
+            self.feat_pool_do = FeatPool([self.feat_dims[0], self.input_encoding_size], self.num_layers * self.rnn_size,
+                                         self.drop_prob_lm, SQUEEZE=False)
             # 3d cnn and subject enc feat -> verb .. 4096>512 and 512>512
-            self.feat_pool_dv = FeatPool([self.feat_dims[1], self.input_encoding_size], self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
+            self.feat_pool_dv = FeatPool([self.feat_dims[1], self.input_encoding_size], self.num_layers * self.rnn_size,
+                                         self.drop_prob_lm, SQUEEZE=False)
 
-            self.feat_pool_f2h = FeatPool([2*self.rnn_size], self.num_layers * self.rnn_size, self.drop_prob_lm, SQUEEZE=False)
+            self.feat_pool_f2h = FeatPool([2 * self.rnn_size], self.num_layers * self.rnn_size, self.drop_prob_lm,
+                                          SQUEEZE=False)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
 
@@ -218,14 +271,14 @@ class CaptionModelSVO(nn.Module):
         self.ss_prob = p
 
     def set_mixer_from(self, t):
-        """Set values of mixer_from 
+        """Set values of mixer_from
         if mixer_from > 0 then start MIXER training
         i.e:
         from t = 0 -> t = mixer_from -1: use XE training
         from t = mixer_from -> end: use RL training
         """
         self.mixer_from = t
-        
+
     def set_seq_per_img(self, x):
         self.seq_per_img = x
         self.feat_expander.set_n(x)
@@ -254,7 +307,7 @@ class CaptionModelSVO(nn.Module):
         v_feats = self.bfeat_pool_v(bfeats)
 
         # use the query and key encodings to calculate self-attention weights
-        b_att = torch.matmul(q_feats, k_feats.transpose(1, 2))/math.sqrt(q_feats.shape[-1])
+        b_att = torch.matmul(q_feats, k_feats.transpose(1, 2)) / math.sqrt(q_feats.shape[-1])
         b_att = F.softmax(b_att, dim=-1)
 
         # record the attention weights, used for visualisation purposes
@@ -272,11 +325,11 @@ class CaptionModelSVO(nn.Module):
         dec_feat_s = self.feat_pool_ds(feats[0:1])
 
         # use the 2D CNN and box encodings to generate attention for the global box reps
-        s_att = torch.matmul(dec_feat_s, gb_rep.transpose(1, 2))/math.sqrt(dec_feat_s.shape[-1])
+        s_att = torch.matmul(dec_feat_s, gb_rep.transpose(1, 2)) / math.sqrt(dec_feat_s.shape[-1])
         s_att = F.softmax(s_att, -1)
         s_rep = torch.matmul(s_att, gb_rep)  # apply the att
         if expand_feat:  # expand to seq_per_img length
-            s_rep = self.feat_expander(s_rep.squeeze(1)).unsqueeze(1) # [seq_im * batch, 1, d]
+            s_rep = self.feat_expander(s_rep.squeeze(1)).unsqueeze(1)  # [seq_im * batch, 1, d]
 
         # encode the subject rep with a hidden layer
         s_hid = self.feat_pool_f2h([s_rep])
@@ -287,13 +340,13 @@ class CaptionModelSVO(nn.Module):
 
         ################### VERB ###################
         if expand_feat:
-            feat_v_exp = self.feat_expander(feats[1].squeeze(1)).unsqueeze(1) # [seq_im * batch, d]
+            feat_v_exp = self.feat_expander(feats[1].squeeze(1)).unsqueeze(1)  # [seq_im * batch, d]
         else:
             feat_v_exp = feats[1].clone()
 
         # encode the verb feature and the subject word embedding
         if self.training and pos is not None:
-            dec_feat_v = self.feat_pool_dv([feat_v_exp, self.embed(pos[:,0]).unsqueeze(1)])
+            dec_feat_v = self.feat_pool_dv([feat_v_exp, self.embed(pos[:, 0]).unsqueeze(1)])
         else:
             dec_feat_v = self.feat_pool_dv([feat_v_exp, self.embed(s_it.squeeze(1)).unsqueeze(1)])
 
@@ -306,21 +359,22 @@ class CaptionModelSVO(nn.Module):
 
         ################### OBJECT ###################
         if expand_feat:
-            feat_o_exp = self.feat_expander(feats[0].squeeze(1)).unsqueeze(1) 
+            feat_o_exp = self.feat_expander(feats[0].squeeze(1)).unsqueeze(1)
         else:
             feat_o_exp = feats[0].clone()
 
         # encode the object feature and the verb word embedding
-        if self.training and pos is not None: 
-            dec_feat_o = self.feat_pool_do([feat_o_exp, self.embed(pos[:,1]).unsqueeze(1)])
+        if self.training and pos is not None:
+            dec_feat_o = self.feat_pool_do([feat_o_exp, self.embed(pos[:, 1]).unsqueeze(1)])
         else:
             dec_feat_o = self.feat_pool_do([feat_o_exp, self.embed(v_it.squeeze(1)).unsqueeze(1)])
 
         # calculate attention over the box features based on the word emb
         if expand_feat:
-            o_att = torch.matmul(dec_feat_o, self.feat_expander(gb_rep).transpose(1, 2))/math.sqrt(dec_feat_o.shape[-1])
+            o_att = torch.matmul(dec_feat_o, self.feat_expander(gb_rep).transpose(1, 2)) / math.sqrt(
+                dec_feat_o.shape[-1])
         else:
-            o_att = torch.matmul(dec_feat_o, gb_rep.transpose(1, 2))/math.sqrt(dec_feat_o.shape[-1])
+            o_att = torch.matmul(dec_feat_o, gb_rep.transpose(1, 2)) / math.sqrt(dec_feat_o.shape[-1])
 
         o_att = F.softmax(o_att, -1)
         if expand_feat:
@@ -335,8 +389,7 @@ class CaptionModelSVO(nn.Module):
         # argmax the object
         o_it = F.softmax(self.logit(o_hid), dim=-1).argmax(-1)
 
-        return torch.cat((s_out, v_out, o_out), dim=1), torch.cat((s_it, v_it, o_it), dim=1) 
-
+        return torch.cat((s_out, v_out, o_out), dim=1), torch.cat((s_it, v_it, o_it), dim=1)
 
     def forward(self, feats, bfeats, seq, pos):
         fc_feats = self.feat_pool(feats)
@@ -389,7 +442,7 @@ class CaptionModelSVO(nn.Module):
                     sample_seq.append(it.data)
                     logprobs = outputs[-1].gather(1, it.unsqueeze(1))
                     sample_logprobs.append(logprobs.view(-1))
-                
+
                 # break if all the sequences end, which requires EOS token = 0
                 if it.data.sum() == 0:
                     break
@@ -397,21 +450,21 @@ class CaptionModelSVO(nn.Module):
                 # get word embedding for the verb, concat with last pred word (it, rep as vocab index)
                 if self.training:
                     if self.pass_all_svo:
-                        lan_cont = self.embed(torch.cat((pos[:,0:1], pos[:,1:2], pos[:,2:3], it.unsqueeze(1)), 1))  # TODO changed to include sub and obj
+                        lan_cont = self.embed(torch.cat((pos, it.unsqueeze(1)), 1))  # include sub and obj
                     else:
-                        lan_cont = self.embed(torch.cat((pos[:,1:2], it.unsqueeze(1)), 1))  # (bs * seq_per_img, 2, 512)
+                        lan_cont = self.embed(torch.cat((pos[:, 1:2], it.unsqueeze(1)), 1))  # (bs * seq_per_img, 2, 512)
                 else:
                     if self.pass_all_svo:
-                        lan_cont = self.embed(torch.cat((svo_it[:, 0:1], svo_it[:, 1:2], svo_it[:, 2:3], it.unsqueeze(1)), 1))  # TODO changed to include sub and obj
+                        lan_cont = self.embed(torch.cat((svo_it, it.unsqueeze(1)), 1))  # include sub and obj
                     else:
-                        lan_cont = self.embed(torch.cat((svo_it[:,1:2], it.unsqueeze(1)), 1))
+                        lan_cont = self.embed(torch.cat((svo_it[:, 1:2], it.unsqueeze(1)), 1))
 
                 if self.pass_all_svo:
-                    hid_cont = state[0].transpose(0,1).expand(lan_cont.shape[0], 4, state[0].shape[2])  # (bs * seq_per_img, 4, 512)
+                    hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 4, state[0].shape[2])  # (bs * seq_per_img, 4, 512)
                 else:
-                    hid_cont = state[0].transpose(0,1).expand(lan_cont.shape[0], 2, state[0].shape[2])  # (bs * seq_per_img, 2, 512)
+                    hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])  # (bs * seq_per_img, 2, 512)
                 # calculate attention on encodings of the verb embedding and the RNN hidden state
-                alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont)+self.h2a_layer(hid_cont)))  # (bs * seq_per_img, 2, 1)
+                alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))  # (bs * seq_per_img, 2, 1)
                 alpha = F.softmax(alpha, dim=1).transpose(1, 2)  # (bs * seq_per_img, 1, 2)
                 # apply the attention to the verb word embedding and the hidden layer emb
                 xt = torch.matmul(alpha, lan_cont).squeeze(1)
@@ -428,14 +481,14 @@ class CaptionModelSVO(nn.Module):
             if token_idx >= 0:
                 output = F.log_softmax(self.logit(self.dropout(output)), dim=1)
                 outputs.append(output)
-        
+
         # only returns outputs of seq input
         # output size is: B x L x V (where L is truncated lengths
         # which are different for different batch)
         return torch.cat([_.unsqueeze(1) for _ in outputs], 1), \
-                torch.cat([_.unsqueeze(1) for _ in sample_seq], 1), \
-                torch.cat([_.unsqueeze(1) for _ in sample_logprobs], 1), \
-                svo_out, svo_it, svo_out.gather(2, svo_it.unsqueeze(2)).squeeze(2)
+               torch.cat([_.unsqueeze(1) for _ in sample_seq], 1), \
+               torch.cat([_.unsqueeze(1) for _ in sample_logprobs], 1), \
+               svo_out, svo_it, svo_out.gather(2, svo_it.unsqueeze(2)).squeeze(2)
 
     def sample(self, feats, bfeats, pos, opt={}):
         sample_max = opt.get('sample_max', 1)
@@ -485,9 +538,9 @@ class CaptionModelSVO(nn.Module):
                     # and flatten indices for downstream processing
                     it = it.view(-1).long()
 
-                lan_cont = self.embed(torch.cat((svo_it[:,1:2], it.unsqueeze(1)), 1))
-                hid_cont = state[0].transpose(0,1).expand(lan_cont.shape[0], 2, state[0].shape[2])
-                alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont)+self.h2a_layer(hid_cont)))
+                lan_cont = self.embed(torch.cat((svo_it[:, 1:2], it.unsqueeze(1)), 1))
+                hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
+                alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
                 alpha = F.softmax(alpha, dim=1).transpose(1, 2)
                 xt = torch.matmul(alpha, lan_cont).squeeze(1)
 
@@ -510,7 +563,8 @@ class CaptionModelSVO(nn.Module):
                 output, state = self.core(torch.cat([xt, fc_feats], 1), state)
 
             logprobs = F.log_softmax(self.logit(output), dim=1)
-        return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1), svo_out, svo_it
+        return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs],
+                                                                      1), svo_out, svo_it
 
     def sample_beam(self, feats, bfeats, pos, opt={}):
         """
@@ -524,7 +578,7 @@ class CaptionModelSVO(nn.Module):
         seq = torch.LongTensor(self.seq_length, batch_size).zero_()
         seqLogprobs = torch.FloatTensor(self.seq_length, batch_size)
         # lets process every image independently for now, for simplicity
-            
+
         self.done_beams = [[] for _ in range(batch_size)]
         for k in range(batch_size):
             state = self.init_hidden(beam_size)
@@ -568,7 +622,8 @@ class CaptionModelSVO(nn.Module):
                             # (sorted) position c
                             local_logprob = ys[q, c]
                             candidate_logprob = beam_logprobs_sum[q] + local_logprob
-                            candidates.append({'c': ix.data[q, c], 'q': q, 'p': candidate_logprob.item(), 'r': local_logprob.item()})
+                            candidates.append(
+                                {'c': ix.data[q, c], 'q': q, 'p': candidate_logprob.item(), 'r': local_logprob.item()})
                     candidates = sorted(candidates, key=lambda x: -x['p'])
 
                     # construct new beams
@@ -605,25 +660,26 @@ class CaptionModelSVO(nn.Module):
                         if v['c'] == 0 or token_idx == self.seq_length - 2:
                             # END token special case here, or we reached the end.
                             # add the beam to a set of done beams
-                            if token_idx > 1: 
+                            if token_idx > 1:
                                 ppl = np.exp(-beam_logprobs_sum[vix] / (token_idx - 1))
                             else:
                                 ppl = 10000
                             self.done_beams[k].append({'seq': beam_seq[:, vix].clone(),
                                                        'logps': beam_seq_logprobs[:, vix].clone(),
                                                        'p': beam_logprobs_sum[vix],
-                                                       'ppl': ppl 
+                                                       'ppl': ppl
                                                        })
 
                     # encode as vectors
                     it = Variable(beam_seq[token_idx - 1].cuda())
                     if self.pass_all_svo:
-                        lan_cont = self.embed(torch.cat((svo_it_k[:,0:1], svo_it_k[:,1:2], svo_it_k[:,2:3], it.unsqueeze(1)), 1))
-                        hid_cont = state[0].transpose(0,1).expand(lan_cont.shape[0], 4, state[0].shape[2])
+                        lan_cont = self.embed(
+                            torch.cat((svo_it_k[:, 0:1], svo_it_k[:, 1:2], svo_it_k[:, 2:3], it.unsqueeze(1)), 1))
+                        hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 4, state[0].shape[2])
                     else:
-                        lan_cont = self.embed(torch.cat((svo_it_k[:,1:2], it.unsqueeze(1)), 1))
-                        hid_cont = state[0].transpose(0,1).expand(lan_cont.shape[0], 2, state[0].shape[2])
-                    alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont)+self.h2a_layer(hid_cont)))
+                        lan_cont = self.embed(torch.cat((svo_it_k[:, 1:2], it.unsqueeze(1)), 1))
+                        hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
+                    alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
                     alpha = F.softmax(alpha, dim=1).transpose(1, 2)
                     xt = torch.matmul(alpha, lan_cont).squeeze(1)
 
@@ -639,64 +695,18 @@ class CaptionModelSVO(nn.Module):
 
                 logprobs = F.log_softmax(self.logit(output), dim=1)
 
-            
-            #self.done_beams[k] = sorted(self.done_beams[k], key=lambda x: -x['p'])
+            # self.done_beams[k] = sorted(self.done_beams[k], key=lambda x: -x['p'])
             self.done_beams[k] = sorted(self.done_beams[k], key=lambda x: x['ppl'])
-            
+
             # the first beam has highest cumulative score
             seq[:, k] = self.done_beams[k][0]['seq']
             seqLogprobs[:, k] = self.done_beams[k][0]['logps']
-            
+
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
-
-
-class PositionalEncoding(nn.Module):
-
-    def __init__(self, d_model, dropout=0.1, max_len=5000):
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
-
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
-        return self.dropout(x)
-
-# TODO make a box enc to FIRST cat then encode, rather than encode then cat
-# class BoxEnc(nn.Module):
-#     def __init__(self, feat_dims, out_size, dropout, SQUEEZE=True):
-#         super(BoxEnc, self).__init__()
-#         self.squeeze = SQUEEZE
-#         module_list = []
-#         for dim in feat_dims:
-#             module = nn.Sequential(
-#                 nn.Linear(dim, out_size),
-#                 nn.ReLU(),
-#                 nn.Dropout(dropout))
-#             module_list += [module]
-#         self.feat_list = nn.ModuleList(module_list)
-#
-#
-#     def forward(self, feats):
-#         """
-#         feats is a list, each element is a tensor that have size (N x C x F)
-#         at the moment assuming that C == 1
-#         """
-#         if self.squeeze:
-#             out = torch.cat([m(feats[i].squeeze(1)) for i, m in enumerate(self.feat_list)], 1)
-#         else:
-#             out = torch.cat([m(feats[i]) for i, m in enumerate(self.feat_list)], 2)
-#         return out
 
 class CaptionModelConcepts(nn.Module):
     """
-    A baseline captioning model
+    A concepts captioning model
     """
 
     def __init__(self, opt):
@@ -708,13 +718,14 @@ class CaptionModelConcepts(nn.Module):
 
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
-        # self.concept_encoding_size = opt.input_encoding_size
+        self.ct_layers = 1
+        self.ct_heads = 1
+
         self.rnn_type = opt.rnn_type
         self.rnn_size = opt.rnn_size
         self.att_size = opt.att_size
 
         assert self.rnn_size == self.textual_encoding_size, print(self.rnn_size, self.textual_encoding_size)
-        # assert self.rnn_size == self.num_feats * self.visual_encoding_size, print(self.rnn_size, self.num_feats * self.visual_encoding_size)
 
         self.num_layers = opt.num_layers
         self.drop_prob_lm = opt.drop_prob_lm
@@ -733,7 +744,7 @@ class CaptionModelConcepts(nn.Module):
         self.logit = nn.Linear(self.textual_encoding_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
         self.dropout = nn.Dropout(self.drop_prob_lm)
 
-        # (S,V,O,pastword + hid_state) attention
+        # (S,V,O,past-word + hid_state) attention
         self.l2a_layer = nn.Linear(self.textual_encoding_size, self.att_size)
         self.h2a_layer = nn.Linear(self.rnn_size, self.att_size)
         self.att_layer = nn.Linear(self.att_size, 1)
@@ -756,11 +767,13 @@ class CaptionModelConcepts(nn.Module):
             # self.embed_txt = nn.Sequential(nn.Linear(self.textual_encoding_size, self.concept_transformer_hidden_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
             # self.embed_vis = nn.Sequential(nn.Linear(self.visual_encoding_size, self.concept_transformer_hidden_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
 
-            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=1, dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
-            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=1)
+            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
+                                                               dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
+            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.ct_layers)
 
-            concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=1, dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
-            self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=1)
+            concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
+                                                               dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+            self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.ct_layers)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
 
@@ -817,39 +830,39 @@ class CaptionModelConcepts(nn.Module):
         # concepts_emb = self.embed_txt(self.embed(pos))
         # visual_features = self.embed_vis(combined_features)
 
+        #### ENCODER ####
         encoded_features = self.concept_encoder(visual_features.permute(1, 0, 2))  # change to (time, batch, channel)
         encoded_features = self.feat_expander(encoded_features.permute(1, 0, 2))  # change to (batch, time, channel)
         encoded_features = encoded_features.permute(1, 0, 2)  # change to (time, batch, channel)
+        #### END ENCODER ####
 
+        #### DECODER ####
         # embed the concepts
         if self.training and pos is not None:
             concept_embeddings = self.embed(pos)
-            concept_embeddings = concept_embeddings.permute(1,0,2)  # change to (time, batch, channel)
+            concept_embeddings = concept_embeddings.permute(1,0,2) # change to (time, batch, channel)
+            assert self.n_concepts == concept_embeddings.size(0), print(self.n_concepts, concept_embeddings.size(0))
+            concept_embeddings = F.pad(concept_embeddings, (0, 0, 0, 0, 1, 0), "constant", 0)  # prepend with zero pad for first word 'our <bos> persay'
+            concept_embeddings = concept_embeddings[:-1]  # remove the last concept
             assert encoded_features.shape[-1] == concept_embeddings.shape[-1], print(encoded_features.shape[-1], concept_embeddings.shape[-1])
-            tgt_mask = (torch.triu(torch.ones(3, 3)) == 0).transpose(0, 1).cuda()
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.n_concepts).cuda()
             out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask)   # out is target shp
-        else:
-            concept_embeddings = torch.zeros((1,encoded_features.size(1),self.textual_encoding_size)).cuda()
-            # concept_embeddings = self.concept_decoder(concept_embeddings, encoded_features)
-
-            tgt_mask = (torch.triu(torch.ones(3, 3)) == 0).transpose(0, 1).cuda()
-
-            # get initial concept
-            tgt_mask_i = tgt_mask[:1, :1]
-            concept_embeddings[0] = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask_i)
-
-            for i in range(1,3):  # get other concepts
-                tgt_mask_i = tgt_mask[:i, :i]
-                concepts = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask_i)
-                concept_embeddings = torch.cat([concept_embeddings, concepts[-1].unsqueeze(0)], dim=0)
-            out = concept_embeddings
-
+        else:  # auto-regressive prediction at inference
+            concept_embeddings = torch.zeros((self.n_concepts+1, encoded_features.size(1), self.textual_encoding_size)).cuda()
+            for i in range(self.n_concepts):
+                decoder_input = concept_embeddings[:i+1]
+                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i+1).cuda()
+                decoder_output = self.concept_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
+                concept_embeddings[i+1] = decoder_output[-1]
+            out = concept_embeddings[1:] # remove the zero <bos>
         # generate a concept
         out = out.permute(1, 0, 2) # change back to (batch, concepts, channels)
+
+        #### END DECODER ####
+
         concept_prob = F.log_softmax(self.logit(out), dim=-1)
         concept_idx = F.softmax(self.logit(out), dim=-1).argmax(-1)
 
-        #### END DECODER ####
 
         return concept_prob, concept_idx
 

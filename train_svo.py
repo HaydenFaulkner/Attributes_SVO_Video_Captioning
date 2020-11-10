@@ -19,8 +19,7 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_concepts import CaptionModelConcepts as ConceptsCaptionModel
-from model_concepts import CaptionModelSVO as SVOCaptionModel
+from model_concepts import CaptionModelConcepts, CaptionModelSVO
 
 import utils
 import opts_svo as opts
@@ -444,6 +443,7 @@ if __name__ == '__main__':
 
     opt = opts.parse_opts()
 
+    os.makedirs(os.path.split(opt.model_file)[0], exist_ok=True)
     logging.basicConfig(filename=opt.model_file.replace('.pth', '.log', 1),
                         filemode='a',level=getattr(logging, opt.loglevel.upper()),
                         format='%(asctime)s:%(levelname)s: %(message)s')
@@ -504,9 +504,9 @@ if __name__ == '__main__':
 
     logger.info('Building model...')
     if opt.exp_type in ['default']:
-        model = SVOCaptionModel(opt)
+        model = CaptionModelSVO(opt)
     elif opt.exp_type in ['transformer01']:
-        model = ConceptsCaptionModel(opt)
+        model = CaptionModelConcepts(opt)
 
     xe_criterion = CrossEntropyCriterion()
     rl_criterion = RewardCriterion()
