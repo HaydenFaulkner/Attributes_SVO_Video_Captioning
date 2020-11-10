@@ -1,7 +1,72 @@
 <h1 align="center">Experiments</h1>
 <p align="center"><a href="https://drive.google.com/drive/folders/1XYgBaVkAQaSw6nQL-7dDAMItfqrgx2dE?usp=sharing">Download the files from my Google Drive.</a></p>
 
-<h3><code><a href="default">my_defaults</a></code></h3>
+<h2>Summary</h2>
+MSVD Test Set Results:
+<table>
+    <tr>
+        <th>Experiment</th>
+        <th>BLEU@1</th>
+        <th>BLEU@2</th>
+        <th>BLEU@3</th>
+        <th>BLEU@4</th>
+        <th>METEOR</th>
+        <th>ROUGE_L</th>
+        <th>CIDEr</th>
+        <th>SPICE</th>
+    </tr>
+    <tr>
+        <td><a href="paper_xe">the paper</a></td>
+        <td>0.7941</td>
+        <td>0.6710</td>
+        <td>0.5690</td>
+        <td>0.4647</td>
+        <td>0.3347</td>
+        <td>0.6938</td>
+        <td>0.8101</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td><code><a href="default">default</a></code></td>
+        <td>0.7881</td>
+        <td>0.6657</td>
+        <td>0.5661</td>
+        <td>0.4629</td>
+        <td>0.3309</td>
+        <td>0.6924</td>
+        <td>0.7879</td>
+        <td>0.0511</td>
+    </tr>
+</table>
+
+MSRVTT Test Set Results:
+<table>
+    <tr>
+        <th>Experiment</th>
+        <th>BLEU@1</th>
+        <th>BLEU@2</th>
+        <th>BLEU@3</th>
+        <th>BLEU@4</th>
+        <th>METEOR</th>
+        <th>ROUGE_L</th>
+        <th>CIDEr</th>
+        <th>SPICE</th>
+    </tr>
+    <tr>
+        <td><a href="paper_xe">the paper</a></td>
+        <td>0.8024</td>
+        <td>0.6619</td>
+        <td>0.5257</td>
+        <td>0.4052</td>
+        <td>0.2819</td>
+        <td>0.6091</td>
+        <td>0.4907</td>
+        <td>-</td>
+    </tr>
+</table>
+
+<h2>Detailed</h2>
+<h3><code><a href="default">default</a></code></h3>
 The default as in paper, MSVD is just a lil bit worse than the paper results, unsure why
 
 To train MSVD:
