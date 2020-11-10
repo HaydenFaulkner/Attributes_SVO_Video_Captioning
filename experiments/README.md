@@ -74,6 +74,17 @@ MSRVTT Test Set Results:
         <td>0.4907</td>
         <td>-</td>
     </tr>
+    <tr>
+        <td><code><a href="default">default</a></code></td>
+        <td>0.7953</td>
+        <td>0.6522</td>
+        <td>0.5157</td>
+        <td>0.3965</td>
+        <td>0.2806</td>
+        <td>0.6043</td>
+        <td>0.4867</td>
+        <td>0.0654</td>
+    </tr>
 </table>
 
 <h2>Detailed</h2>
