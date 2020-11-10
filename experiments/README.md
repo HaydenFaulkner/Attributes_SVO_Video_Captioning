@@ -37,6 +37,17 @@ MSVD Test Set Results:
         <td>0.7879</td>
         <td>0.0511</td>
     </tr>
+    <tr>
+        <td><code><a href="default_all_svo">default_all_svo</a></code></td>
+        <td>0.7808</td>
+        <td>0.6564</td>
+        <td>0.5572</td>
+        <td>0.4541</td>
+        <td>0.3277</td>
+        <td>0.6900</td>
+        <td>0.7942</td>
+        <td>0.0500</td>
+    </tr>
 </table>
 
 MSRVTT Test Set Results:
