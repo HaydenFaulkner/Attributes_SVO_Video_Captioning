@@ -205,7 +205,7 @@ MSRVTT Val Set Results (best CIDEr epoch):
 
 <h2>Detailed</h2>
 <h3><code><a href="default">default</a></code></h3>
-The default as in paper, MSVD is just a lil bit worse than the paper results, unsure why
+Trying to replicate the paper results, mine come out a little worse, unsure why.
 
 To train MSVD:
 <pre>
@@ -317,7 +317,7 @@ python train_svo.py --exp_type default
 </pre>
 
 <h3><code><a href="transformer01">transformer01</a></code></h3>
-Uses a transformer encoder-decoder to calculate the SVO triplets. Is simpler architecture design that the original. It learns the SVOs better (SVO loss drops quicker during training), however it may be overfitting on MSVD.
+Uses a transformer encoder-decoder to calculate the SVO triplets. Is simpler (more general) architecture design than the original. It learns the SVOs better (SVO loss drops quicker during training), however it may be overfitting on MSVD.
 
 To train MSVD:
 <pre>
