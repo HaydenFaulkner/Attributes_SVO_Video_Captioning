@@ -357,7 +357,7 @@ def validate(model, criterion, loader, opt):
 
         seq, logseq, _, seq_svo = model.sample(feats, bfeats, labels_svo, {'beam_size': opt.beam_size})
         sents = utils.decode_sequence(opt.vocab, seq)
-        seq_svo = seq_svo.reshape(batch_size, -1, seq_svo.size(-1))[:, 0]  # todo fixed batching issue
+        seq_svo = seq_svo.reshape(-1, opt.test_seq_per_img, seq_svo.size(-1))[:, 0]  # todo fixed batching issue
         sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
         if opt.output_logp == 1:
             test_avglogp = utils.compute_avglogp(seq, logseq)
