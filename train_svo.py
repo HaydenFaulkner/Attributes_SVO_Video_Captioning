@@ -7,6 +7,7 @@ from torch.nn.utils import clip_grad_norm_
 import numpy as np
 import os
 import sys
+import random
 import time
 import math
 import json
@@ -218,9 +219,10 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             pred, _, _, pred_svo, svo_it, svo_gath = model(feats, bfeats, labels, labels_svo)
             loss_cap = criterion(pred, labels[:, 1:], masks[:, 1:], bcmrscores=torch.from_numpy(data['bcmrscores'].astype(np.float32)).cuda())
             loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
-            print('---------------------')
-            print(utils.decode_sequence(opt.vocab, labels_svo)[:5])
-            print(utils.decode_sequence(opt.vocab, svo_it)[:5])
+            if random.random() < 0.05:  # compare the svos during training
+                print('---------------------')
+                print(utils.decode_sequence(opt.vocab, labels_svo)[:5])
+                print(utils.decode_sequence(opt.vocab, svo_it)[:5])
             loss = loss_cap + (opt.labda/10.0)*loss_svo
             
 
