@@ -70,6 +70,17 @@ MSVD Test Set Results:
         <td>0.7847</td>
         <td>0.0508</td>
     </tr>
+    <tr>
+        <td><code><a href="transformer01_all_svo_cc">transformer01_all_svo_cc</a></code></td>
+        <td>0.7910</td>
+        <td>0.6692</td>
+        <td>0.5635</td>
+        <td>0.4510</td>
+        <td>0.3214</td>
+        <td>0.6837</td>
+        <td>0.7183</td>
+        <td>0.0490</td>
+    </tr>
 </table>
 
 MSRVTT Test Set Results:
@@ -178,11 +189,22 @@ MSVD Val Set Results (best CIDEr epoch):
         <td><b>0.8056</b></td>
         <td><b>0.6909</b></td>
         <td><b>0.5943</b></td>
-        <td><b>0.4992</b></td>
+        <td>0.4992</td>
         <td><b>0.3382</b></td>
         <td><b>0.7173</b></td>
         <td><b>0.9684</b></td>
         <td><b>0.0508</b></td>
+    </tr>
+        <td><code><a href="transformer01_all_svo_cc">transformer01_all_svo_cc</a></code></td>
+        <td>83</td>
+        <td>0.7975</td>
+        <td>0.6869</td>
+        <td>0.6014</td>
+        <td><b>0.5143</b></td>
+        <td>0.3310</td>
+        <td>0.7074</td>
+        <td>0.9205</td>
+        <td>0.0480</td>
     </tr>
 </table>
 
@@ -340,7 +362,9 @@ python train_svo.py --exp_type default
 </pre>
 
 <h3><code><a href="transformer01">transformer01</a></code></h3>
-Uses a transformer encoder-decoder to calculate the SVO triplets. Is simpler (more general) architecture design than the original. It learns the SVOs better (SVO loss drops quicker during training), however it may be overfitting on MSVD.
+Uses a transformer encoder-decoder to calculate the SVO triplets. 
+
+<code>--clamp_concepts 0</code> means that the concept decoder outputs are fed as-is back into the decoder as input, which at inference time results in bad SVO predictions for the verb and object (it repeats the subject, not sure why this occurs with the raw decoder embeddings). This might explain poor results as the expected verb is just the subject.
 
 To train MSVD:
 <pre>
@@ -366,6 +390,7 @@ python train_svo.py --exp_type transformer01
                     --test_batch_size 8
                     --max_epochs 100
                     --labda 12.0
+                    --clamp_concepts 0
 </pre>
 
 To train MSRVTT:
@@ -392,11 +417,13 @@ python train_svo.py --exp_type transformer01
                     --test_batch_size 32
                     --max_epochs 200
                     --labda 20.0
+                    --clamp_concepts 0
 </pre>
 
 <h3><code><a href="transformer01_all_svo">transformer01_all_svo</a></code></h3>
 The same as the <code>transformer01</code> however instead of just conditioning the LSTM input on the verb and past word, we condition on the sub, verb and obj as well as previous word.
 
+<code>--clamp_concepts 0</code> means that the concept decoder outputs are fed as-is back into the decoder as input, which at inference time results in bad SVO predictions for the verb and object (it repeats the subject, not sure why this occurs with the raw decoder embeddings). However unlike <code><a href="transformer01">transformer01</a></code> the results are good despite poor SVOs, unsure why this is at the moment.
 To train MSVD:
 <pre>
 python train_svo.py --exp_type transformer01
@@ -422,6 +449,7 @@ python train_svo.py --exp_type transformer01
                     --max_epochs 100
                     --labda 12.0
                     --pass_all_svo 1
+                    --clamp_concepts 0
 </pre>
 
 To train MSRVTT:
@@ -449,4 +477,5 @@ python train_svo.py --exp_type transformer01
                     --max_epochs 200
                     --labda 20.0
                     --pass_all_svo 1
+                    --clamp_concepts 0
 </pre>
