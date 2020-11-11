@@ -49,6 +49,17 @@ MSVD Test Set Results:
         <td>0.0500</td>
     </tr>
     <tr>
+        <td><code><a href="transformer01">transformer01</a></code></td>
+        <td>0.7815</td>
+        <td>0.6052</td>
+        <td>0.4642</td>
+        <td>0.2949</td>
+        <td>0.2620</td>
+        <td>0.6498</td>
+        <td>0.4266</td>
+        <td>0.0373</td>
+    </tr>
+    <tr>
         <td><code><a href="transformer01_all_svo">transformer01_all_svo</a></code></td>
         <td><b>0.7979</b></td>
         <td><b>0.6807</b></td>
@@ -150,6 +161,18 @@ MSVD Val Set Results (best CIDEr epoch):
         <td>0.0494</td>
     </tr>
     <tr>
+        <td><code><a href="transformer01">transformer01</a></code></td>
+        <td>18</td>
+        <td>0.8041</td>
+        <td>0.6436</td>
+        <td>0.5194</td>
+        <td>0.3843</td>
+        <td>0.2795</td>
+        <td>0.6686</td>
+        <td>0.6012</td>
+        <td>0.0388</td>
+    </tr>
+    <tr>
         <td><code><a href="transformer01_all_svo">transformer01_all_svo</a></code></td>
         <td>98</td>
         <td><b>0.8056</b></td>
@@ -159,7 +182,7 @@ MSVD Val Set Results (best CIDEr epoch):
         <td><b>0.3382</b></td>
         <td><b>0.7173</b></td>
         <td><b>0.9684</b></td>
-        <td><b>0.5082</b></td>
+        <td><b>0.0508</b></td>
     </tr>
 </table>
 
