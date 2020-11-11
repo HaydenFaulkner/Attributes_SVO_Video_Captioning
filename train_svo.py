@@ -357,7 +357,8 @@ def validate(model, criterion, loader, opt):
 
         seq, logseq, _, seq_svo = model.sample(feats, bfeats, labels_svo, {'beam_size': opt.beam_size})
         sents = utils.decode_sequence(opt.vocab, seq)
-        sents_svo = utils.decode_sequence(opt.vocab, seq_svo)		
+        seq_svo = seq_svo.reshape(batch_size, -1, seq_svo.size(-1))[:, 0]  # todo fixed batching issue
+        sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
         if opt.output_logp == 1:
             test_avglogp = utils.compute_avglogp(seq, logseq)
             test_avglogps.extend(test_avglogp)
@@ -368,7 +369,7 @@ def validate(model, criterion, loader, opt):
             else:
                 entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
             predictions.append(entry)
-            logger.debug('[%d] video %s: %s' % (jj, entry['image_id'], entry['caption']))
+            logger.debug('[%d] video %s: %s (%s)' % (jj, entry['image_id'], entry['caption'], entry['svo']))
         del feats, labels, masks, labels_svo, seq, logseq
         torch.cuda.empty_cache()
     loss = round(loss_sum / num_iters, 3)
