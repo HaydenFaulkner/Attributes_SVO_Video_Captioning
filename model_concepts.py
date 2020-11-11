@@ -888,7 +888,7 @@ class CaptionModelConcepts(nn.Module):
         for token_idx in range(start_i, end_i):
             if token_idx == -1:  # initially set xt as global feats
                 xt = fc_feats  # todo was (544,1024) could encode 1024->textual_encoding_size
-                xt = torch.zeros((fc_feats.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
+                # xt = torch.zeros((fc_feats.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
             else:
                 # token_idx = 0 corresponding to the <BOS> token
                 # (already encoded in seq)
