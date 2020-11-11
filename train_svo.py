@@ -215,10 +215,13 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             loss = loss + (opt.labda/10.0)*loss_svo
 
         else:
-            pred, _, _, pred_svo, _, _ = model(feats, bfeats, labels, labels_svo)
-            loss = criterion(pred, labels[:, 1:], masks[:, 1:], bcmrscores=torch.from_numpy(data['bcmrscores'].astype(np.float32)).cuda())
+            pred, _, _, pred_svo, svo_it, svo_gath = model(feats, bfeats, labels, labels_svo)
+            loss_cap = criterion(pred, labels[:, 1:], masks[:, 1:], bcmrscores=torch.from_numpy(data['bcmrscores'].astype(np.float32)).cuda())
             loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
-            loss = loss + (opt.labda/10.0)*loss_svo
+            print('---------------------')
+            print(utils.decode_sequence(opt.vocab, labels_svo)[:5])
+            print(utils.decode_sequence(opt.vocab, svo_it)[:5])
+            loss = loss_cap + (opt.labda/10.0)*loss_svo
             
 
         loss.backward()
@@ -229,6 +232,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         torch.cuda.empty_cache()
 
         infos['TrainLoss'] = loss.item()
+        infos['CAPTrainLoss'] = loss_cap.item()
         infos['SVOTrainLoss'] = loss_svo.item()
         infos['mixer_from'] = mixer_from
         infos['scb_captions'] = scb_captions
@@ -239,6 +243,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             log_info = [('Epoch', infos['epoch']),
                         ('Iter', infos['iter']),
                         ('Loss', infos['TrainLoss']),
+                        ('CAP Loss', infos['CAPTrainLoss']),
                         ('SVO Loss', infos['SVOTrainLoss'])]
 
             if rl_training:
