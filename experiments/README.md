@@ -21,9 +21,9 @@ MSVD Test Set Results:
         <td>0.6710</td>
         <td>0.5690</td>
         <td>0.4647</td>
-        <td>0.3347</td>
+        <td><b>0.3347</b></td>
         <td>0.6938</td>
-        <td>0.8101</td>
+        <td><b>0.8101</b></td>
         <td>-</td>
     </tr>
     <tr>
@@ -35,7 +35,7 @@ MSVD Test Set Results:
         <td>0.3309</td>
         <td>0.6924</td>
         <td>0.7879</td>
-        <td>0.0511</td>
+        <td><b>0.0511</b></td>
     </tr>
     <tr>
         <td><code><a href="default_all_svo">default_all_svo</a></code></td>
@@ -47,6 +47,17 @@ MSVD Test Set Results:
         <td>0.6900</td>
         <td>0.7942</td>
         <td>0.0500</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer01_all_svo">transformer01_all_svo</a></code></td>
+        <td><b>0.7979</b></td>
+        <td><b>0.6807</b></td>
+        <td><b>0.5816</b></td>
+        <td><b>0.4763</b></td>
+        <td>0.3323</td>
+        <td><b>0.6980</b></td>
+        <td>0.7847</td>
+        <td>0.0508</td>
     </tr>
 </table>
 
@@ -84,6 +95,111 @@ MSRVTT Test Set Results:
         <td>0.6043</td>
         <td>0.4867</td>
         <td>0.0654</td>
+    </tr>
+</table>
+
+
+MSVD Val Set Results (best CIDEr epoch):
+<table>
+    <tr>
+        <th>Experiment</th>
+        <th>Epoch</th>
+        <th>BLEU@1</th>
+        <th>BLEU@2</th>
+        <th>BLEU@3</th>
+        <th>BLEU@4</th>
+        <th>METEOR</th>
+        <th>ROUGE_L</th>
+        <th>CIDEr</th>
+        <th>SPICE</th>
+    </tr>
+    <tr>
+        <td><a href="paper_xe">the paper</a></td>
+        <td>71</td>
+        <td>0.7866</td>
+        <td>0.6707</td>
+        <td>0.5752</td>
+        <td>0.4938</td>
+        <td>0.3349</td>
+        <td>0.7039</td>
+        <td>0.9390</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td><code><a href="default">default</a></code></td>
+        <td>75</td>
+        <td>0.7825</td>
+        <td>0.6597</td>
+        <td>0.5620</td>
+        <td>0.4709</td>
+        <td>0.3300</td>
+        <td>0.7049</td>
+        <td>0.9376</td>
+        <td>0.0483</td>
+    </tr>
+    <tr>
+        <td><code><a href="default_all_svo">default_all_svo</a></code></td>
+        <td>91</td>
+        <td>0.7953</td>
+        <td>0.6622</td>
+        <td>0.5596</td>
+        <td>0.4575</td>
+        <td>0.3255</td>
+        <td>0.7059</td>
+        <td>0.8339</td>
+        <td>0.0494</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer01_all_svo">transformer01_all_svo</a></code></td>
+        <td>98</td>
+        <td><b>0.8056</b></td>
+        <td><b>0.6909</b></td>
+        <td><b>0.5943</b></td>
+        <td><b>0.4992</b></td>
+        <td><b>0.3382</b></td>
+        <td><b>0.7173</b></td>
+        <td><b>0.9684</b></td>
+        <td><b>0.5082</b></td>
+    </tr>
+</table>
+
+MSRVTT Val Set Results (best CIDEr epoch):
+<table>
+    <tr>
+        <th>Experiment</th>
+        <th>Epoch</th>
+        <th>BLEU@1</th>
+        <th>BLEU@2</th>
+        <th>BLEU@3</th>
+        <th>BLEU@4</th>
+        <th>METEOR</th>
+        <th>ROUGE_L</th>
+        <th>CIDEr</th>
+        <th>SPICE</th>
+    </tr>
+    <tr>
+        <td><a href="paper_xe">the paper</a></td>
+        <td>84</td>
+        <td>0.8107</td>
+        <td>0.6717</td>
+        <td>0.5368</td>
+        <td>0.4165</td>
+        <td>0.2878</td>
+        <td>0.6110</td>
+        <td>0.5004</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td><code><a href="default">default</a></code></td>
+        <td>92</td>
+        <td>0.8122</td>
+        <td>0.6660</td>
+        <td>0.5255</td>
+        <td>0.4006</td>
+        <td>0.2859</td>
+        <td>0.6043</td>
+        <td>0.4948</td>
+        <td>0.0664</td>
     </tr>
 </table>
 
@@ -178,6 +294,118 @@ To train MSRVTT:
 python train_svo.py --exp_type default
                     --model_file experiments/default_all_svo/msrvtt.pth
                     --result_file experiments/default_all_svo/msrvtt.json
+                    --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
+                    --val_label_h5 datasets/msrvtt/metadata/msrvtt_val_sequencelabel.h5
+                    --test_label_h5 datasets/msrvtt/metadata/msrvtt_test_sequencelabel.h5
+                    --train_cocofmt_file datasets/msrvtt/metadata/msrvtt_train_cocofmt.json
+                    --val_cocofmt_file datasets/msrvtt/metadata/msrvtt_val_cocofmt.json
+                    --test_cocofmt_file datasets/msrvtt/metadata/msrvtt_test_cocofmt.json
+                    --train_bcmrscores_pkl datasets/msrvtt/metadata/msrvtt_train_evalscores.pkl
+                    --train_cached_tokens datasets/msrvtt/metadata/msrvtt_train_ciderdf.pkl
+                    --train_feat_h5 datasets/msrvtt/features/msrvtt_train_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_train_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_train_category_mp1.h5
+                    --val_feat_h5 datasets/msrvtt/features/msrvtt_val_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_val_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_val_category_mp1.h5
+                    --test_feat_h5 datasets/msrvtt/features/msrvtt_test_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_test_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_test_category_mp1.h5
+                    --bfeat_h5 datasets/msrvtt/features/msrvtt_roi_feat.h5 datasets/msrvtt/features/msrvtt_roi_box.h5
+                    --fr_size_h5 datasets/msrvtt/features/msrvtt_fr_size.h5
+                    --train_seq_per_img 20
+                    --test_seq_per_img 20
+                    --batch_size 64
+                    --test_batch_size 32
+                    --max_epochs 200
+                    --labda 20.0
+                    --pass_all_svo 1
+</pre>
+
+<h3><code><a href="transformer01">transformer01</a></code></h3>
+Uses a transformer encoder-decoder to calculate the SVO triplets. Is simpler architecture design that the original. It learns the SVOs better (SVO loss drops quicker during training), however it may be overfitting on MSVD.
+
+To train MSVD:
+<pre>
+python train_svo.py --exp_type transformer01
+                    --model_file experiments/transformer01/msvd.pth
+                    --result_file experiments/transformer01/msvd.json
+                    --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
+                    --val_label_h5 datasets/msvd/metadata/msvd_val_sequencelabel.h5
+                    --test_label_h5 datasets/msvd/metadata/msvd_test_sequencelabel.h5
+                    --train_cocofmt_file datasets/msvd/metadata/msvd_train_cocofmt.json
+                    --val_cocofmt_file datasets/msvd/metadata/msvd_val_cocofmt.json
+                    --test_cocofmt_file datasets/msvd/metadata/msvd_test_cocofmt.json
+                    --train_bcmrscores_pkl datasets/msvd/metadata/msvd_train_evalscores.pkl
+                    --train_cached_tokens datasets/msvd/metadata/msvd_train_ciderdf.pkl
+                    --train_feat_h5 datasets/msvd/features/msvd_train_resnet_mp1.h5 datasets/msvd/features/msvd_train_c3d_mp1.h5
+                    --val_feat_h5 datasets/msvd/features/msvd_val_resnet_mp1.h5 datasets/msvd/features/msvd_val_c3d_mp1.h5
+                    --test_feat_h5 datasets/msvd/features/msvd_test_resnet_mp1.h5 datasets/msvd/features/msvd_test_c3d_mp1.h5
+                    --bfeat_h5 datasets/msvd/features/msvd_roi_feat.h5 datasets/msvd/features/msvd_roi_box.h5
+                    --fr_size_h5 datasets/msvd/features/msvd_fr_size.h5
+                    --train_seq_per_img 17
+                    --test_seq_per_img 17
+                    --batch_size 8
+                    --test_batch_size 8
+                    --max_epochs 100
+                    --labda 12.0
+</pre>
+
+To train MSRVTT:
+<pre>
+python train_svo.py --exp_type transformer01
+                    --model_file experiments/transformer01/msrvtt.pth
+                    --result_file experiments/transformer01/msrvtt.json
+                    --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
+                    --val_label_h5 datasets/msrvtt/metadata/msrvtt_val_sequencelabel.h5
+                    --test_label_h5 datasets/msrvtt/metadata/msrvtt_test_sequencelabel.h5
+                    --train_cocofmt_file datasets/msrvtt/metadata/msrvtt_train_cocofmt.json
+                    --val_cocofmt_file datasets/msrvtt/metadata/msrvtt_val_cocofmt.json
+                    --test_cocofmt_file datasets/msrvtt/metadata/msrvtt_test_cocofmt.json
+                    --train_bcmrscores_pkl datasets/msrvtt/metadata/msrvtt_train_evalscores.pkl
+                    --train_cached_tokens datasets/msrvtt/metadata/msrvtt_train_ciderdf.pkl
+                    --train_feat_h5 datasets/msrvtt/features/msrvtt_train_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_train_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_train_category_mp1.h5
+                    --val_feat_h5 datasets/msrvtt/features/msrvtt_val_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_val_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_val_category_mp1.h5
+                    --test_feat_h5 datasets/msrvtt/features/msrvtt_test_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_test_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_test_category_mp1.h5
+                    --bfeat_h5 datasets/msrvtt/features/msrvtt_roi_feat.h5 datasets/msrvtt/features/msrvtt_roi_box.h5
+                    --fr_size_h5 datasets/msrvtt/features/msrvtt_fr_size.h5
+                    --train_seq_per_img 20
+                    --test_seq_per_img 20
+                    --batch_size 64
+                    --test_batch_size 32
+                    --max_epochs 200
+                    --labda 20.0
+</pre>
+
+<h3><code><a href="transformer01_all_svo">transformer01_all_svo</a></code></h3>
+The same as the <code>transformer01</code> however instead of just conditioning the LSTM input on the verb and past word, we condition on the sub, verb and obj as well as previous word.
+
+To train MSVD:
+<pre>
+python train_svo.py --exp_type transformer01
+                    --model_file experiments/transformer01_all_svo/msvd.pth
+                    --result_file experiments/transformer01_all_svo/msvd.json
+                    --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
+                    --val_label_h5 datasets/msvd/metadata/msvd_val_sequencelabel.h5
+                    --test_label_h5 datasets/msvd/metadata/msvd_test_sequencelabel.h5
+                    --train_cocofmt_file datasets/msvd/metadata/msvd_train_cocofmt.json
+                    --val_cocofmt_file datasets/msvd/metadata/msvd_val_cocofmt.json
+                    --test_cocofmt_file datasets/msvd/metadata/msvd_test_cocofmt.json
+                    --train_bcmrscores_pkl datasets/msvd/metadata/msvd_train_evalscores.pkl
+                    --train_cached_tokens datasets/msvd/metadata/msvd_train_ciderdf.pkl
+                    --train_feat_h5 datasets/msvd/features/msvd_train_resnet_mp1.h5 datasets/msvd/features/msvd_train_c3d_mp1.h5
+                    --val_feat_h5 datasets/msvd/features/msvd_val_resnet_mp1.h5 datasets/msvd/features/msvd_val_c3d_mp1.h5
+                    --test_feat_h5 datasets/msvd/features/msvd_test_resnet_mp1.h5 datasets/msvd/features/msvd_test_c3d_mp1.h5
+                    --bfeat_h5 datasets/msvd/features/msvd_roi_feat.h5 datasets/msvd/features/msvd_roi_box.h5
+                    --fr_size_h5 datasets/msvd/features/msvd_fr_size.h5
+                    --train_seq_per_img 17
+                    --test_seq_per_img 17
+                    --batch_size 8
+                    --test_batch_size 8
+                    --max_epochs 100
+                    --labda 12.0
+                    --pass_all_svo 1
+</pre>
+
+To train MSRVTT:
+<pre>
+python train_svo.py --exp_type transformer01
+                    --model_file experiments/transformer01_all_svo/msrvtt.pth
+                    --result_file experiments/transformer01_all_svo/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
                     --val_label_h5 datasets/msrvtt/metadata/msrvtt_val_sequencelabel.h5
                     --test_label_h5 datasets/msrvtt/metadata/msrvtt_test_sequencelabel.h5
