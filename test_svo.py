@@ -12,6 +12,7 @@ from datetime import datetime
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion
+from model_concepts import CaptionModelConcepts, CaptionModelSVO
 from train_svo import test
 
 import utils
@@ -64,7 +65,10 @@ if __name__ == '__main__':
     assert opt.bfeat_dims == test_loader.get_bfeat_dims()
 
     logger.info('Building model...')
-    model = CaptionModel(opt)
+    if opt.exp_type in ['default']:
+        model = CaptionModelSVO(opt)
+    elif opt.exp_type in ['transformer01']:
+        model = CaptionModelConcepts(opt)
     logger.info('Loading state from the checkpoint...')
     model.load_state_dict(checkpoint['model'])
 
