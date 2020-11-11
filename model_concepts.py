@@ -733,6 +733,7 @@ class CaptionModelConcepts(nn.Module):
         self.seq_per_img = opt.train_seq_per_img
         self.model_type = opt.model_type
         self.pass_all_svo = opt.pass_all_svo
+        self.clamp_nearest = opt.clamp_concepts
         self.n_concepts =  3 # opt.n_concepts # todo fix
         self.bos_index = 1  # index of the <bos> token
         self.ss_prob = 0
@@ -847,22 +848,34 @@ class CaptionModelConcepts(nn.Module):
             assert encoded_features.shape[-1] == concept_embeddings.shape[-1], print(encoded_features.shape[-1], concept_embeddings.shape[-1])
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.n_concepts).cuda()
             out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask)   # out is target shp
+
+            # generate a concept
+            out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
+
+            concept_prob = F.log_softmax(self.logit(out), dim=-1)
+            concept_idx = F.softmax(self.logit(out), dim=-1).argmax(-1)
+
         else:  # auto-regressive prediction at inference
             concept_embeddings = torch.zeros((self.n_concepts+1, encoded_features.size(1), self.textual_encoding_size)).cuda()
+            concept_probs = torch.zeros((encoded_features.size(1), self.n_concepts, self.vocab_size)).cuda()
+            concept_idxs = torch.zeros((encoded_features.size(1), self.n_concepts), dtype=torch.long).cuda()
             for i in range(self.n_concepts):
                 decoder_input = concept_embeddings[:i+1]
                 tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i+1).cuda()
                 decoder_output = self.concept_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
-                concept_embeddings[i+1] = decoder_output[-1]
-            out = concept_embeddings[1:] # remove the zero <bos>
-        # generate a concept
-        out = out.permute(1, 0, 2) # change back to (batch, concepts, channels)
 
+                concept_idxs[:, i] = F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1)
+                concept_probs[:, i] = F.log_softmax(self.logit(decoder_output[-1]), dim=-1)
+                if self.clamp_nearest:
+                    # find nearest actual concept
+                    concept_embeddings[i+1] = self.embed(concept_idxs[:, i])
+                else:
+                    # pass raw decoder as input
+                    concept_embeddings[i+1] = decoder_output[-1]
+
+            concept_prob = concept_probs
+            concept_idx = concept_idxs
         #### END DECODER ####
-
-        concept_prob = F.log_softmax(self.logit(out), dim=-1)
-        concept_idx = F.softmax(self.logit(out), dim=-1).argmax(-1)
-
 
         return concept_prob, concept_idx
 
@@ -994,7 +1007,7 @@ class CaptionModelConcepts(nn.Module):
         for token_idx in range(start_i, end_i):
             if token_idx == -1:
                 xt = fc_feats  # todo was (544,1024) could encode 1024->textual_encoding_size
-                xt = torch.zeros((fc_feats.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
+                # xt = torch.zeros((fc_feats.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
             else:
                 if token_idx == 0:  # input <bos>
                     it = fc_feats.data.new(batch_size).long().fill_(self.bos_index)
@@ -1040,8 +1053,7 @@ class CaptionModelConcepts(nn.Module):
                 output, state = self.core(torch.cat([xt, fc_feats], 1), state)
 
             logprobs = F.log_softmax(self.logit(output), dim=1)
-        return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs],
-                                                                      1), svo_out, svo_it
+        return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1), svo_out, svo_it
 
     def sample_beam(self, feats, bfeats, pos, opt={}):
         """

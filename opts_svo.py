@@ -302,6 +302,13 @@ def parse_opts():
         help='Pass all s,v,o to the LSTM cap gen, or just v')
 
     parser.add_argument(
+        '--clamp_concepts',
+        type=int,
+        default=1,
+        choices=[0, 1],
+        help='0: Use decoder output at t-1 as decoder input at t. 1: Clamp decoder output at t-1 to best word, and get this word embedding for decoder input at t.')
+
+    parser.add_argument(
         '--beam_size',
         type=int,
         default=5,
