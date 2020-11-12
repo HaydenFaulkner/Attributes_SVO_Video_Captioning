@@ -659,7 +659,7 @@ python train_svo.py --exp_type transformer01
                     --max_epochs 100
                     --labda 12.0
                     --pass_all_svo 1
-                    --clamp_concepts 0
+                    --clamp_concepts 1
 </pre>
 
 To train MSRVTT:
@@ -687,5 +687,5 @@ python train_svo.py --exp_type transformer01
                     --max_epochs 200
                     --labda 20.0
                     --pass_all_svo 1
-                    --clamp_concepts 0
+                    --clamp_concepts 1
 </pre>
