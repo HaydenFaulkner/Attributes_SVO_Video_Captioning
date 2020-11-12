@@ -109,13 +109,13 @@ MSRVTT Test Set Results:
     </tr>
     <tr>
         <td><a href="paper_xe">the paper</a></td>
-        <td>0.8024</td>
-        <td>0.6619</td>
-        <td>0.5257</td>
-        <td>0.4052</td>
-        <td>0.2819</td>
+        <td><b>0.8024</b></td>
+        <td><b>0.6619</b></td>
+        <td><b>0.5257</b></td>
+        <td><b>0.4052</b></td>
+        <td><b>0.2819</b></td>
         <td>0.6091</td>
-        <td>0.4907</td>
+        <td><b>0.4907</b></td>
         <td>-</td>
     </tr>
     <tr>
@@ -139,6 +139,17 @@ MSRVTT Test Set Results:
         <td>0.6018</td>
         <td>0.4697</td>
         <td><b>0.0656</b></td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer01_all_svo">transformer01_all_svo</a></code></td>
+        <td>0.7999</td>
+        <td>0.6606</td>
+        <td>0.5222</td>
+        <td>0.3982</td>
+        <td>0.2763</td>
+        <td><b>0.6101</b></td>
+        <td>0.4815</td>
+        <td>0.0625</td>
     </tr>
     <tr>
         <td><code><a href="transformer01_all_svo_cc">transformer01_all_svo_cc</a></code></td>
@@ -302,6 +313,18 @@ MSRVTT Val Set Results (best CIDEr epoch):
         <td>0.6089</td>
         <td>0.4979</td>
         <td>0.0671</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer01_all_svo">transformer01_all_svo</a></code></td>
+        <td>86</td>
+        <td>0.8055</td>
+        <td>0.6659</td>
+        <td>0.5290</td>
+        <td>0.4032</td>
+        <td>0.2853</td>
+        <td>0.6098</td>
+        <td>0.5078</td>
+        <td>0.0653</td>
     </tr>
     <tr>
         <td><code><a href="transformer01_all_svo_cc">transformer01_all_svo_cc</a></code></td>
