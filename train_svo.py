@@ -20,7 +20,7 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_concepts import CaptionModelConcepts, CaptionModelSVO
+from model_concepts import CaptionModelConcepts, CaptionModelSVO, CaptionModelConceptsDT
 
 import utils
 import opts_svo as opts
@@ -515,6 +515,8 @@ if __name__ == '__main__':
         model = CaptionModelSVO(opt)
     elif opt.exp_type in ['transformer01']:
         model = CaptionModelConcepts(opt)
+    elif opt.exp_type in ['transformer02']:
+        model = CaptionModelConceptsDT(opt)
 
     xe_criterion = CrossEntropyCriterion()
     rl_criterion = RewardCriterion()

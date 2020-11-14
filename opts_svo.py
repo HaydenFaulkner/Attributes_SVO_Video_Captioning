@@ -11,7 +11,8 @@ def parse_opts():
         default='default',
         choices=[
             'default',
-            'transformer01'],
+            'transformer01',
+            'transformer02'],
         help='Type of experiment')
 
     parser.add_argument(
