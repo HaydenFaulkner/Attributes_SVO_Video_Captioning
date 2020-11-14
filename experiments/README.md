@@ -130,6 +130,17 @@ MSRVTT Test Set Results:
         <td>0.0654</td>
     </tr>
     <tr>
+        <td><code><a href="transformer01">transformer01</a></code></td>
+        <td>0.7197</td>
+        <td>0.5606</td>
+        <td>0.4031</td>
+        <td>0.2645</td>
+        <td>0.2444</td>
+        <td>0.5599</td>
+        <td>0.3339</td>
+        <td>0.0525</td>
+    </tr>
+    <tr>
         <td><code><a href="transformer01_cc">transformer01_cc</a></code></td>
         <td>0.8005</td>
         <td>0.6527</td>
@@ -301,6 +312,18 @@ MSRVTT Val Set Results (best CIDEr epoch):
         <td>0.6043</td>
         <td>0.4948</td>
         <td>0.0664</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer01">transformer01</a></code></td>
+        <td>35</td>
+        <td>0.7426</td>
+        <td>0.5766</td>
+        <td>0.4168</td>
+        <td>0.2828</td>
+        <td>0.2496</td>
+        <td>0.5669</td>
+        <td>0.3578</td>
+        <td>0.0559</td>
     </tr>
     <tr>
         <td><code><a href="transformer01_cc">transformer01_cc</a></code></td>
