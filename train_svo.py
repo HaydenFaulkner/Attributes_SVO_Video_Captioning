@@ -221,6 +221,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
             if random.random() < 0.05:  # compare the svos during training
                 print('---------------------')
+                print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))
                 print(utils.decode_sequence(opt.vocab, labels_svo)[:5])
                 print(utils.decode_sequence(opt.vocab, svo_it)[:5])
             loss = loss_cap + (opt.labda/10.0)*loss_svo
