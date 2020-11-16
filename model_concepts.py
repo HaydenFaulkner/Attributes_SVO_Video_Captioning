@@ -1256,9 +1256,7 @@ class CaptionModelConceptsDT(nn.Module):
             # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
             self.box_encoder = FeatPool(self.bfeat_dims, int(self.visual_encoding_size/2), self.drop_prob_lm, SQUEEZE=False)  # TODO replace with new box encoder
 
-            # self.embed_txt = nn.Sequential(nn.Linear(self.textual_encoding_size, self.concept_transformer_hidden_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
-            # self.embed_vis = nn.Sequential(nn.Linear(self.visual_encoding_size, self.concept_transformer_hidden_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
-
+            # Concept Prediction module (visual feature encoder > k concepts decoder)
             concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
                                                                dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
             self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.ct_layers)
@@ -1267,11 +1265,7 @@ class CaptionModelConceptsDT(nn.Module):
                                                                dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
             self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.ct_layers)
 
-
-            # caption_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
-            #                                                    dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
-            # self.caption_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.ct_layers)
-
+            # Caption Prediction Module (a decoder on the global feats and k concept embeddings)
             caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
                                                                dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
             self.caption_decoder = nn.TransformerDecoder(caption_decoder_layer, num_layers=self.ct_layers)
@@ -1327,9 +1321,6 @@ class CaptionModelConceptsDT(nn.Module):
 
         # concat the box features to the global features
         visual_features = torch.cat(encoded_global_feats + [encoded_boxes], dim=-2)
-
-        # concepts_emb = self.embed_txt(self.embed(pos))
-        # visual_features = self.embed_vis(combined_features)
 
         #### ENCODER ####
         encoded_features = self.concept_encoder(visual_features.permute(1, 0, 2))  # change to (time, batch, channel)
@@ -1395,7 +1386,6 @@ class CaptionModelConceptsDT(nn.Module):
 
         encoded_features = torch.cat([fc_feats, svo_embs], dim=0)  # cat the vis feats and the svo
         ########### RNN ###########
-        batch_size = fc_feats.size(0)
         sample_seq = []
         sample_logprobs = []
 
@@ -1408,32 +1398,28 @@ class CaptionModelConceptsDT(nn.Module):
         start_i = -1 if self.model_type == 'standard' else 0
         end_i = seq.size(1) - 1
 
-        max_ind = 0
-        for token_idx in range(start_i, end_i):
-            it = seq[:, token_idx].clone()
-            # break if all the sequences end, which requires EOS token = 0
-            if it.data.sum() == 0:
-                max_ind = token_idx
-                break
-
-        if 0:# self.training:  # todo replace for loop for training but fix sample_log_probs error
+        if 1:#self.training:  # todo replace for loop for training but fix sample_log_probs error
 
             caption_embeddings = self.embed(seq)
             caption_embeddings = caption_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, seq.size(-1)).cuda()
             tgt_key_padding_mask = (seq == 0)
-            out = self.caption_decoder(caption_embeddings, self.embed(svo_it),
+            out = self.caption_decoder(caption_embeddings, encoded_features,
                                        tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)  # out is target shp
 
             # generate a concept
-            out = out[1:].permute(1, 0, 2)  # remove the bos token and change back to (batch, concepts, channels)
+            out = out[:-1].permute(1, 0, 2)  # remove the last token and change back to (batch, concepts, channels)
 
             word_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)
             word_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
 
             sample_seq = seq[:, 1:]
-            sample_logprobs = word_probs.gather(1, sample_seq.unsqueeze(-1))  # todo fix this error
-            print()
+            # sample_logprobs = word_probs.gather(1, sample_seq.unsqueeze(-1))  # dont know why but this errors so need loop as below
+            sample_logprobs = []
+            for token_idx in range(start_i, end_i):
+                it = seq[:, token_idx+1].clone()  # get indexs of gt words
+                logprobs = word_probs.permute(1, 0, 2)[token_idx].gather(1, it.unsqueeze(1))  # get prediction probs at those locations
+                sample_logprobs.append(logprobs.view(-1))
         else:
             for token_idx in range(start_i, end_i):
                 it = seq[:, token_idx].clone()
@@ -1453,17 +1439,14 @@ class CaptionModelConceptsDT(nn.Module):
                 tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, token_idx + 1).cuda()
                 decoder_output = self.caption_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
 
-                # if self.clamp_nearest: # find nearest actual concept
-                #     word_embeddings[token_idx + 1] = self.embed(F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1))
-                # else:
-                #     # pass raw decoder as input
-                #     word_embeddings[token_idx + 1] = decoder_output[-1]
-                outputs[token_idx] = F.log_softmax(self.logit(decoder_output[-1]), dim=1)
+                outputs[token_idx] = F.log_softmax(self.logit(self.dropout(decoder_output[-1])), dim=1)
                 #### END DECODER ####
 
             word_probs = torch.cat([_.unsqueeze(1) for _ in outputs], 1)
             sample_seq = torch.cat([_.unsqueeze(1) for _ in sample_seq], 1)
-            sample_logprobs = torch.cat([_.unsqueeze(1) for _ in sample_logprobs], 1)
+
+
+        sample_logprobs = torch.cat([_.unsqueeze(1) for _ in sample_logprobs], 1)
             # only returns outputs of seq input
 
         # output size is: B x L x V (where L is truncated lengths
@@ -1551,9 +1534,10 @@ class CaptionModelConceptsDT(nn.Module):
         modified from https://github.com/ruotianluo/self-critical.pytorch
         """
         beam_size = opt.get('beam_size', 5)
-        fc_feats = self.feat_pool(feats)
+        fc_feats = self.feat_pool(feats, stack=True)
         svo_out, svo_it = self.concept_generator(feats, bfeats, expand_feat=0)
         batch_size = fc_feats.size(0)
+        svo_it = svo_it.reshape(batch_size, -1, svo_it.size(-1))[:, 0]  # todo fixed batching issue
 
         seq = torch.LongTensor(self.seq_length, batch_size).zero_()
         seqLogprobs = torch.FloatTensor(self.seq_length, batch_size)
@@ -1562,7 +1546,7 @@ class CaptionModelConceptsDT(nn.Module):
         self.done_beams = [[] for _ in range(batch_size)]
         for k in range(batch_size):
             state = self.init_hidden(beam_size)
-            fc_feats_k = fc_feats[k].expand(beam_size, self.visual_encoding_size*self.num_feats)
+            fc_feats_k = fc_feats[k].expand(beam_size, self.num_feats, self.visual_encoding_size)
             svo_it_k = svo_it[k].expand(beam_size, 3)
             # pos_k = pos[(k - 1) * 20].expand(beam_size, 3)
 
@@ -1575,12 +1559,14 @@ class CaptionModelConceptsDT(nn.Module):
             start_i = -1 if self.model_type == 'standard' else 0
             end_i = self.seq_length - 1
 
+            its = torch.LongTensor(self.seq_length, beam_size).zero_().cuda()
             for token_idx in range(start_i, end_i):
                 if token_idx == -1:
                     xt = fc_feats_k  # todo was (544,1024) could encode 1024->textual_encoding_size
                     xt = torch.zeros((fc_feats_k.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
                 elif token_idx == 0:  # input <bos>
-                    it = fc_feats.data.new(beam_size).long().fill_(self.bos_index)
+                    it = fc_feats.data.new(beam_size).long().fill_(self.bos_index)  # [1,1,1,1,1]
+                    its[token_idx] = it
                     xt = self.embed(Variable(it, requires_grad=False))
                 else:
                     """perform a beam merge. that is,
@@ -1651,16 +1637,17 @@ class CaptionModelConceptsDT(nn.Module):
 
                     # encode as vectors
                     it = Variable(beam_seq[token_idx - 1].cuda())
-                    if self.pass_all_svo:
-                        lan_cont = self.embed(
-                            torch.cat((svo_it_k[:, 0:1], svo_it_k[:, 1:2], svo_it_k[:, 2:3], it.unsqueeze(1)), 1))
-                        hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 4, state[0].shape[2])
-                    else:
-                        lan_cont = self.embed(torch.cat((svo_it_k[:, 1:2], it.unsqueeze(1)), 1))
-                        hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
-                    alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
-                    alpha = F.softmax(alpha, dim=1).transpose(1, 2)
-                    xt = torch.matmul(alpha, lan_cont).squeeze(1)
+                    its[token_idx] = it
+                    # if self.pass_all_svo:
+                    #     lan_cont = self.embed(
+                    #         torch.cat((svo_it_k[:, 0:1], svo_it_k[:, 1:2], svo_it_k[:, 2:3], it.unsqueeze(1)), 1))
+                    #     hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 4, state[0].shape[2])
+                    # else:
+                    #     lan_cont = self.embed(torch.cat((svo_it_k[:, 1:2], it.unsqueeze(1)), 1))
+                    #     hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
+                    # alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
+                    # alpha = F.softmax(alpha, dim=1).transpose(1, 2)
+                    # xt = torch.matmul(alpha, lan_cont).squeeze(1)
 
                 if token_idx >= 1:
                     state = new_state
@@ -1670,7 +1657,22 @@ class CaptionModelConceptsDT(nn.Module):
                 else:
                     if self.model_type == 'manet':
                         fc_feats_k = self.manet(fc_feats_k, state[0])
-                    output, state = self.core(torch.cat([xt, fc_feats_k], 1), state)
+                    # output, state = self.core(torch.cat([xt, fc_feats_k], 1), state) ####################################################
+
+                    svo_embs = self.embed(svo_it_k)
+
+                    encoded_features = torch.cat([fc_feats_k, svo_embs], dim=1).permute(1, 0, 2)  # change to (time, batch, channel)  # cat the vis feats and the svo
+                    decoder_input = self.embed(its[:token_idx+1])
+                    tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, token_idx + 1).cuda()
+                    decoder_output = self.caption_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
+
+                    # if self.clamp_nearest: # find nearest actual concept
+                    #     word_embeddings[token_idx + 1] = self.embed(F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1))
+                    # else:
+                    #     # pass raw decoder as input
+                    #     word_embeddings[token_idx + 1] = decoder_output[-1]
+                    # outputs[token_idx] = F.log_softmax(self.logit(decoder_output[-1]), dim=1)
+                    output = decoder_output[-1]
 
                 logprobs = F.log_softmax(self.logit(output), dim=1)
 
