@@ -1385,69 +1385,33 @@ class CaptionModelConceptsDT(nn.Module):
         svo_embs = svo_embs.permute(1, 0, 2)  # change to (time, batch, channel)
 
         encoded_features = torch.cat([fc_feats, svo_embs], dim=0)  # cat the vis feats and the svo
-        ########### RNN ###########
-        sample_seq = []
-        sample_logprobs = []
-
-        # word_embeddings = torch.zeros((30, encoded_features.size(1), self.textual_encoding_size)).cuda()
-        outputs = torch.zeros((29, encoded_features.size(1), self.vocab_size)).cuda()
-
 
         # -- if <image feature> is input at the first step, use index -1
         # -- the <eos> token is not used for training
         start_i = -1 if self.model_type == 'standard' else 0
         end_i = seq.size(1) - 1
 
-        if 1:#self.training:  # todo replace for loop for training but fix sample_log_probs error
+        caption_embeddings = self.embed(seq)
+        caption_embeddings = caption_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, seq.size(-1)).cuda()
+        tgt_key_padding_mask = (seq == 0)
+        out = self.caption_decoder(caption_embeddings, encoded_features,
+                                   tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)  # out is target shp
 
-            caption_embeddings = self.embed(seq)
-            caption_embeddings = caption_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
-            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, seq.size(-1)).cuda()
-            tgt_key_padding_mask = (seq == 0)
-            out = self.caption_decoder(caption_embeddings, encoded_features,
-                                       tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)  # out is target shp
+        # generate a concept
+        out = out[:-1].permute(1, 0, 2)  # remove the last token and change back to (batch, concepts, channels)
 
-            # generate a concept
-            out = out[:-1].permute(1, 0, 2)  # remove the last token and change back to (batch, concepts, channels)
+        word_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)
+        word_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
 
-            word_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)
-            word_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
-
-            sample_seq = seq[:, 1:]
-            # sample_logprobs = word_probs.gather(1, sample_seq.unsqueeze(-1))  # dont know why but this errors so need loop as below
-            sample_logprobs = []
-            for token_idx in range(start_i, end_i):
-                it = seq[:, token_idx+1].clone()  # get indexs of gt words
-                logprobs = word_probs.permute(1, 0, 2)[token_idx].gather(1, it.unsqueeze(1))  # get prediction probs at those locations
-                sample_logprobs.append(logprobs.view(-1))
-        else:
-            for token_idx in range(start_i, end_i):
-                it = seq[:, token_idx].clone()
-
-                if token_idx >= 1:
-                    # store the seq and its logprobs
-                    sample_seq.append(it.data)
-                    logprobs = outputs[token_idx-1].gather(1, it.unsqueeze(1))
-                    sample_logprobs.append(logprobs.view(-1))
-
-                # break if all the sequences end, which requires EOS token = 0
-                if it.data.sum() == 0:
-                    break
-
-                # auto-regressive prediction at inference
-                decoder_input = self.embed(seq.permute(1, 0)[:token_idx+1])
-                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, token_idx + 1).cuda()
-                decoder_output = self.caption_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
-
-                outputs[token_idx] = F.log_softmax(self.logit(self.dropout(decoder_output[-1])), dim=1)
-                #### END DECODER ####
-
-            word_probs = torch.cat([_.unsqueeze(1) for _ in outputs], 1)
-            sample_seq = torch.cat([_.unsqueeze(1) for _ in sample_seq], 1)
-
-
+        sample_seq = seq[:, 1:]
+        # sample_logprobs = word_probs.gather(1, sample_seq.unsqueeze(-1))  # dont know why but this errors so need loop as below
+        sample_logprobs = []
+        for token_idx in range(start_i, end_i):
+            it = seq[:, token_idx+1].clone()  # get indexs of gt words
+            logprobs = word_probs.permute(1, 0, 2)[token_idx].gather(1, it.unsqueeze(1))  # get prediction probs at those locations
+            sample_logprobs.append(logprobs.view(-1))
         sample_logprobs = torch.cat([_.unsqueeze(1) for _ in sample_logprobs], 1)
-            # only returns outputs of seq input
 
         # output size is: B x L x V (where L is truncated lengths
         # which are different for different batch)
