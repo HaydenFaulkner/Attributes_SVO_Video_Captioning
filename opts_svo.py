@@ -6,16 +6,6 @@ def parse_opts():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        '--exp_type',
-        type=str,
-        default='default',
-        choices=[
-            'default',
-            'transformer01',
-            'transformer02'],
-        help='Type of experiment')
-
-    parser.add_argument(
         '--model_file',
         type=str,
         help='output model file')
@@ -125,19 +115,71 @@ def parse_opts():
 
     # Model settings
     parser.add_argument(
-        '--rnn_type',
+        '--captioner_type',
         type=str,
         default='lstm',
         choices=[
             'lstm',
             'gru',
-            'rnn'],
+            'rnn',
+            'transformer'],
         help='type of RNN')
     parser.add_argument(
-        '--rnn_size',
+        '--captioner_size',
         type=int,
         default=512,
-        help='size of the rnn in number of hidden nodes in each layer')
+        help='size of the captioner in number of hidden nodes in each layer')
+    parser.add_argument(
+        '--captioner_layers',
+        type=int,
+        default=1,
+        help='number of layers in the captioner')
+    parser.add_argument(
+        '--captioner_heads',
+        type=int,
+        default=1,
+        help='number of heads in the captioner')
+    parser.add_argument(
+        '--filter_type',
+        type=str,
+        default='svo_original',
+        choices=[
+            'svo_original',
+            'svo_transformer',
+            'concept_transformer',
+            'visual_encoder'],
+        help='type of the filtering prior to captioning')
+    parser.add_argument(
+        '--filter_encoder_size',
+        type=int,
+        default=512,
+        help='size of the filter in number of hidden nodes in each encoder layer')
+    parser.add_argument(
+        '--filter_encoder_layers',
+        type=int,
+        default=1,
+        help='number of layers in the filter encoder')
+    parser.add_argument(
+        '--filter_encoder_heads',
+        type=int,
+        default=1,
+        help='number of heads in the filter encoder')
+    parser.add_argument(
+        '--filter_decoder_size',
+        type=int,
+        default=512,
+        help='size of the filter in number of hidden nodes in each decoder layer')
+    parser.add_argument(
+        '--filter_decoder_layers',
+        type=int,
+        default=1,
+        help='number of layers in the filter decoder')
+    parser.add_argument(
+        '--filter_decoder_heads',
+        type=int,
+        default=1,
+        help='number of heads in the filter decoder')
+
     parser.add_argument(
         '--att_size',
         type=int,
@@ -278,11 +320,6 @@ def parse_opts():
         type=int,
         default=1,
         help='1: no attention, > 1: attention with num_chunks')
-    parser.add_argument(
-        '--num_layers',
-        type=int,
-        default=1,
-        help='number of layers in the lstm ')
 
     parser.add_argument(
         '--model_type',

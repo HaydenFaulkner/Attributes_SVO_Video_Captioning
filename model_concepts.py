@@ -111,9 +111,9 @@ class RNNUnit(nn.Module):
 
     def __init__(self, opt):
         super(RNNUnit, self).__init__()
-        self.rnn_type = opt.rnn_type
-        self.rnn_size = opt.rnn_size
-        self.num_layers = opt.num_layers
+        self.captioner_type = opt.captioner_type
+        self.captioner_size = opt.captioner_size
+        self.captioner_layers = opt.captioner_layers
         self.drop_prob_lm = opt.drop_prob_lm
 
         if opt.model_type == 'standard':
@@ -121,7 +121,7 @@ class RNNUnit(nn.Module):
         elif opt.model_type in ['concat', 'manet']:
             self.input_size = opt.input_encoding_size + opt.video_encoding_size
 
-        self.rnn = getattr(nn, self.rnn_type.upper())(self.input_size, self.rnn_size, self.num_layers, bias=False, dropout=self.drop_prob_lm)
+        self.rnn = getattr(nn, self.captioner_type.upper())(self.input_size, self.captioner_size, self.captioner_layers, bias=False, dropout=self.drop_prob_lm)
 
     def forward(self, xt, state):
         output, state = self.rnn(xt.unsqueeze(0), state)
@@ -133,19 +133,19 @@ class MANet(nn.Module):
     MANet: Modal Attention
     """
 
-    def __init__(self, video_encoding_size, rnn_size, num_feats):
+    def __init__(self, video_encoding_size, captioner_size, num_feats):
         super(MANet, self).__init__()
         self.video_encoding_size = video_encoding_size
-        self.rnn_size = rnn_size
+        self.captioner_size = captioner_size
         self.num_feats = num_feats
 
         self.f_feat_m = nn.Linear(self.video_encoding_size, self.num_feats)
-        self.f_h_m = nn.Linear(self.rnn_size, self.num_feats)
+        self.f_h_m = nn.Linear(self.captioner_size, self.num_feats)
         self.align_m = nn.Linear(self.num_feats, self.num_feats)
 
     def forward(self, x, h):
         f_feat = self.f_feat_m(x)
-        f_h = self.f_h_m(h.squeeze(0))  # assuming now num_layers is 1
+        f_h = self.f_h_m(h.squeeze(0))  # assuming now captioner_layers is 1
         att_weight = nn.Softmax()(self.align_m(nn.Tanh()(f_feat + f_h)))
         att_weight = att_weight.unsqueeze(2).expand(
             x.size(0), self.num_feats, int(self.video_encoding_size / self.num_feats))
@@ -199,19 +199,19 @@ class PositionalEncoding(nn.Module):
 #             out = torch.cat([m(feats[i]) for i, m in enumerate(self.feat_list)], 2)
 #         return out
 
-class CaptionModelSVO(nn.Module):
+class SVORNN(nn.Module):
     """
     Allow S V and O to be put into LTSM when --pass_all_svo is set to 1
     """
 
     def __init__(self, opt):
-        super(CaptionModelSVO, self).__init__()
+        super(SVORNN, self).__init__()
         self.vocab_size = opt.vocab_size
         self.input_encoding_size = opt.input_encoding_size
-        self.rnn_type = opt.rnn_type
-        self.rnn_size = opt.rnn_size
+        self.captioner_type = opt.captioner_type
+        self.captioner_size = opt.captioner_size
         self.att_size = opt.att_size
-        self.num_layers = opt.num_layers
+        self.captioner_layers = opt.captioner_layers
         self.drop_prob_lm = opt.drop_prob_lm
         self.seq_length = opt.seq_length
         self.bfeat_dims = opt.bfeat_dims
@@ -226,49 +226,49 @@ class CaptionModelSVO(nn.Module):
         self.attention_record = list()
 
         self.embed = nn.Embedding(self.vocab_size, self.input_encoding_size)  # word embedding layer (1-hot -> enc)
-        self.logit = nn.Linear(self.rnn_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
+        self.logit = nn.Linear(self.captioner_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
         self.dropout = nn.Dropout(self.drop_prob_lm)
 
         self.l2a_layer = nn.Linear(self.input_encoding_size, self.att_size)
-        self.h2a_layer = nn.Linear(self.rnn_size, self.att_size)
+        self.h2a_layer = nn.Linear(self.captioner_size, self.att_size)
         self.att_layer = nn.Linear(self.att_size, 1)
 
         self.init_weights()
         if self.model_type == 'standard':
-            self.feat_pool = FeatPool(self.feat_dims[0:1], self.num_layers * self.rnn_size, self.drop_prob_lm)
+            self.feat_pool = FeatPool(self.feat_dims[0:1], self.captioner_layers * self.captioner_size, self.drop_prob_lm)
         else:
-            self.feat_pool = FeatPool(self.feat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm)
+            self.feat_pool = FeatPool(self.feat_dims, self.captioner_layers * self.captioner_size, self.drop_prob_lm)
 
             # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
-            self.bfeat_pool_q = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+            self.bfeat_pool_q = FeatPool(self.bfeat_dims, self.captioner_layers * self.captioner_size, self.drop_prob_lm,
                                          SQUEEZE=False)
-            self.bfeat_pool_k = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+            self.bfeat_pool_k = FeatPool(self.bfeat_dims, self.captioner_layers * self.captioner_size, self.drop_prob_lm,
                                          SQUEEZE=False)
-            self.bfeat_pool_v = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+            self.bfeat_pool_v = FeatPool(self.bfeat_dims, self.captioner_layers * self.captioner_size, self.drop_prob_lm,
                                          SQUEEZE=False)
 
             # encode the visual features (linear>relu>dropout)
             # 2d cnn -> subject 1536>1024 and 4096>1024
-            self.feat_pool_ds = FeatPool(self.feat_dims[0:1], self.num_layers * 2 * self.rnn_size, self.drop_prob_lm,
+            self.feat_pool_ds = FeatPool(self.feat_dims[0:1], self.captioner_layers * 2 * self.captioner_size, self.drop_prob_lm,
                                          SQUEEZE=False)
             # 2d cnn and verb enc feat -> object .. 1536>512 and 512>512
-            self.feat_pool_do = FeatPool([self.feat_dims[0], self.input_encoding_size], self.num_layers * self.rnn_size,
+            self.feat_pool_do = FeatPool([self.feat_dims[0], self.input_encoding_size], self.captioner_layers * self.captioner_size,
                                          self.drop_prob_lm, SQUEEZE=False)
             # 3d cnn and subject enc feat -> verb .. 4096>512 and 512>512
-            self.feat_pool_dv = FeatPool([self.feat_dims[1], self.input_encoding_size], self.num_layers * self.rnn_size,
+            self.feat_pool_dv = FeatPool([self.feat_dims[1], self.input_encoding_size], self.captioner_layers * self.captioner_size,
                                          self.drop_prob_lm, SQUEEZE=False)
 
-            self.feat_pool_f2h = FeatPool([2 * self.rnn_size], self.num_layers * self.rnn_size, self.drop_prob_lm,
+            self.feat_pool_f2h = FeatPool([2 * self.captioner_size], self.captioner_layers * self.captioner_size, self.drop_prob_lm,
                                           SQUEEZE=False)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
 
-        self.video_encoding_size = self.num_feats * self.num_layers * self.rnn_size
+        self.video_encoding_size = self.num_feats * self.captioner_layers * self.captioner_size
         opt.video_encoding_size = self.video_encoding_size
         self.core = RNNUnit(opt)  # the caption generation rnn LSTM(512) with input size 2048
 
         if self.model_type == 'manet':
-            self.manet = MANet(self.video_encoding_size, self.rnn_size, self.num_feats)
+            self.manet = MANet(self.video_encoding_size, self.captioner_size, self.num_feats)
 
     def set_ss_prob(self, p):
         self.ss_prob = p
@@ -295,11 +295,11 @@ class CaptionModelSVO(nn.Module):
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
 
-        if self.rnn_type == 'lstm':
-            return (Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_()),
-                    Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_()))
+        if self.captioner_type == 'lstm':
+            return (Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_()),
+                    Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_()))
         else:
-            return Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_())
+            return Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_())
 
     def _svo_step(self, feats, bfeats, pos=None, expand_feat=1):
         # pos is svo gt vocab indexs
@@ -707,13 +707,13 @@ class CaptionModelSVO(nn.Module):
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
-class CaptionModelConcepts(nn.Module):
+class CONRNN(nn.Module):
     """
     A concepts captioning model
     """
 
     def __init__(self, opt):
-        super(CaptionModelConcepts, self).__init__()
+        super(CONRNN, self).__init__()
         self.vocab_size = opt.vocab_size
         self.bfeat_dims = opt.bfeat_dims
         self.feat_dims = opt.feat_dims
@@ -721,16 +721,19 @@ class CaptionModelConcepts(nn.Module):
 
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
-        self.ct_layers = 1
+        self.filter_encoder_layers = opt.filter_encoder_layers
+        self.filter_decoder_layers = opt.filter_decoder_layers
+        self.filter_encoder_heads = opt.filter_encoder_heads
+        self.filter_decoder_heads = opt.filter_decoder_heads
         self.ct_heads = 1
 
-        self.rnn_type = opt.rnn_type
-        self.rnn_size = opt.rnn_size
+        self.captioner_type = opt.captioner_type
+        self.captioner_size = opt.captioner_size
         self.att_size = opt.att_size
 
-        assert self.rnn_size == self.textual_encoding_size, print(self.rnn_size, self.textual_encoding_size)
+        assert self.captioner_size == self.textual_encoding_size, print(self.captioner_size, self.textual_encoding_size)
 
-        self.num_layers = opt.num_layers
+        self.captioner_layers = opt.captioner_layers
         self.drop_prob_lm = opt.drop_prob_lm
         self.seq_length = opt.seq_length
         self.seq_per_img = opt.train_seq_per_img
@@ -743,14 +746,13 @@ class CaptionModelConcepts(nn.Module):
         self.mixer_from = 0
         self.attention_record = list()
 
-
         self.embed = nn.Embedding(self.vocab_size, self.textual_encoding_size)  # word embedding layer (1-hot -> enc)
         self.logit = nn.Linear(self.textual_encoding_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
         self.dropout = nn.Dropout(self.drop_prob_lm)
 
         # (S,V,O,past-word + hid_state) attention
         self.l2a_layer = nn.Linear(self.textual_encoding_size, self.att_size)
-        self.h2a_layer = nn.Linear(self.rnn_size, self.att_size)
+        self.h2a_layer = nn.Linear(self.captioner_size, self.att_size)
         self.att_layer = nn.Linear(self.att_size, 1)
 
         self.init_weights()
@@ -768,16 +770,13 @@ class CaptionModelConcepts(nn.Module):
             # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
             self.box_encoder = FeatPool(self.bfeat_dims, int(self.visual_encoding_size/2), self.drop_prob_lm, SQUEEZE=False)  # TODO replace with new box encoder
 
-            # self.embed_txt = nn.Sequential(nn.Linear(self.textual_encoding_size, self.concept_transformer_hidden_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
-            # self.embed_vis = nn.Sequential(nn.Linear(self.visual_encoding_size, self.concept_transformer_hidden_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
-
-            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
+            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_encoder_heads,
                                                                dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
-            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.ct_layers)
+            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.filter_encoder_layers)
 
             concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
                                                                dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
-            self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.ct_layers)
+            self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.filter_decoder_heads)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
 
@@ -785,7 +784,7 @@ class CaptionModelConcepts(nn.Module):
         self.core = RNNUnit(opt)  # the caption generation rnn LSTM(512) with input size 2048
 
         if self.model_type == 'manet':
-            self.manet = MANet(self.video_encoding_size, self.rnn_size, self.num_feats)
+            self.manet = MANet(self.video_encoding_size, self.captioner_size, self.num_feats)
 
     def set_ss_prob(self, p):
         self.ss_prob = p
@@ -812,13 +811,13 @@ class CaptionModelConcepts(nn.Module):
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
 
-        if self.rnn_type == 'lstm':
-            return (Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_()),
-                    Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_()))
+        if self.captioner_type == 'lstm':
+            return (Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_()),
+                    Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_()))
         else:
-            return Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_())
+            return Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_())
 
-    def concept_generator(self, feats, bfeats, pos=None, expand_feat=0):
+    def concept_generator(self, feats, bfeats, pos=None, expand_feat=1):
 
         # encode all of the global features into a single space
         encoded_global_feats = list()
@@ -831,13 +830,11 @@ class CaptionModelConcepts(nn.Module):
         # concat the box features to the global features
         visual_features = torch.cat(encoded_global_feats + [encoded_boxes], dim=-2)
 
-        # concepts_emb = self.embed_txt(self.embed(pos))
-        # visual_features = self.embed_vis(combined_features)
-
         #### ENCODER ####
         encoded_features = self.concept_encoder(visual_features.permute(1, 0, 2))  # change to (time, batch, channel)
-        encoded_features = self.feat_expander(encoded_features.permute(1, 0, 2))  # change to (batch, time, channel)
-        encoded_features = encoded_features.permute(1, 0, 2)  # change to (time, batch, channel)
+        if expand_feat:
+            encoded_features = self.feat_expander(encoded_features.permute(1, 0, 2))  # change to (batch, time, channel)
+            encoded_features = encoded_features.permute(1, 0, 2)  # change to (time, batch, channel)
         #### END ENCODER ####
 
         #### DECODER ####
@@ -990,7 +987,7 @@ class CaptionModelConcepts(nn.Module):
 
         svo_out, svo_it = self.concept_generator(feats, bfeats, expand_feat=expand_feat)
         if beam_size > 1:
-            return (*self.sample_beam(feats, bfeats, pos, opt)), svo_out, svo_it
+            return ((*self.sample_beam(feats, bfeats, pos, opt)), svo_out, svo_it)
 
         fc_feats = self.feat_pool(feats)
         if expand_feat == 1:
@@ -1195,13 +1192,13 @@ class CaptionModelConcepts(nn.Module):
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
-class CaptionModelConceptsDT(nn.Module):
+class CONTRA(nn.Module):
     """
     A concepts captioning model
     """
 
     def __init__(self, opt):
-        super(CaptionModelConceptsDT, self).__init__()
+        super(CONTRA, self).__init__()
         self.vocab_size = opt.vocab_size
         self.bfeat_dims = opt.bfeat_dims
         self.feat_dims = opt.feat_dims
@@ -1209,16 +1206,18 @@ class CaptionModelConceptsDT(nn.Module):
 
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
-        self.ct_layers = 1
-        self.ct_heads = 1
+        self.filter_encoder_layers = opt.filter_encoder_layers
+        self.filter_encoder_heads = opt.filter_encoder_heads
+        self.filter_decoder_layers = opt.filter_decoder_layers
+        self.filter_decoder_heads = opt.filter_decoder_heads
 
-        self.rnn_type = opt.rnn_type
-        self.rnn_size = opt.rnn_size
-        self.att_size = opt.att_size
+        self.captioner_type = opt.captioner_type
+        self.captioner_size = opt.captioner_size
+        self.captioner_layers = opt.captioner_layers
+        self.captioner_heads = opt.captioner_heads
 
-        assert self.rnn_size == self.textual_encoding_size, print(self.rnn_size, self.textual_encoding_size)
+        assert self.captioner_size == self.textual_encoding_size, print(self.captioner_size, self.textual_encoding_size)
 
-        self.num_layers = opt.num_layers
         self.drop_prob_lm = opt.drop_prob_lm
         self.seq_length = opt.seq_length
         self.seq_per_img = opt.train_seq_per_img
@@ -1231,52 +1230,38 @@ class CaptionModelConceptsDT(nn.Module):
         self.mixer_from = 0
         self.attention_record = list()
 
-
         self.embed = nn.Embedding(self.vocab_size, self.textual_encoding_size)  # word embedding layer (1-hot -> enc)
         self.logit = nn.Linear(self.textual_encoding_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
         self.dropout = nn.Dropout(self.drop_prob_lm)
 
-        # (S,V,O,past-word + hid_state) attention
-        self.l2a_layer = nn.Linear(self.textual_encoding_size, self.att_size)
-        self.h2a_layer = nn.Linear(self.rnn_size, self.att_size)
-        self.att_layer = nn.Linear(self.att_size, 1)
+        self.feat_pool = FeatPool(self.feat_dims, self.visual_encoding_size, self.drop_prob_lm)
 
-        self.init_weights()
-        if self.model_type == 'standard':
-            self.feat_pool = FeatPool(self.feat_dims[0:1], self.visual_encoding_size, self.drop_prob_lm)
-        else:
-            self.feat_pool = FeatPool(self.feat_dims, self.visual_encoding_size, self.drop_prob_lm)
+        # encode the visual features (linear>relu>dropout)
+        self.global_encoders = list()
+        for feat_dim in self.feat_dims:
+            self.global_encoders.append(nn.Sequential(nn.Linear(feat_dim, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm)))
+        self.global_encoders = nn.ModuleList(self.global_encoders)
 
-            # encode the visual features (linear>relu>dropout)
-            self.global_encoders = list()
-            for feat_dim in self.feat_dims:
-                self.global_encoders.append(nn.Sequential(nn.Linear(feat_dim, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm)))
-            self.global_encoders = nn.ModuleList(self.global_encoders)
+        # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
+        self.box_encoder = FeatPool(self.bfeat_dims, int(self.visual_encoding_size/2), self.drop_prob_lm, SQUEEZE=False)  # TODO replace with new box encoder
 
-            # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
-            self.box_encoder = FeatPool(self.bfeat_dims, int(self.visual_encoding_size/2), self.drop_prob_lm, SQUEEZE=False)  # TODO replace with new box encoder
+        # Concept Prediction module (visual feature encoder > k concepts decoder)
+        concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_encoder_heads,
+                                                           dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
+        self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.filter_encoder_layers)
 
-            # Concept Prediction module (visual feature encoder > k concepts decoder)
-            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
-                                                               dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
-            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.ct_layers)
+        concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_decoder_heads,
+                                                           dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+        self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.filter_decoder_layers)
 
-            concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
-                                                               dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
-            self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.ct_layers)
-
-            # Caption Prediction Module (a decoder on the global feats and k concept embeddings)
-            caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
-                                                               dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
-            self.caption_decoder = nn.TransformerDecoder(caption_decoder_layer, num_layers=self.ct_layers)
+        # Caption Prediction Module (a decoder on the global feats and k concept embeddings)
+        caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.captioner_heads,
+                                                           dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+        self.caption_decoder = nn.TransformerDecoder(caption_decoder_layer, num_layers=self.captioner_layers)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
 
-        opt.video_encoding_size = self.visual_encoding_size * self.num_feats
-        self.core = RNNUnit(opt)  # the caption generation rnn LSTM(512) with input size 2048
-
-        if self.model_type == 'manet':
-            self.manet = MANet(self.video_encoding_size, self.rnn_size, self.num_feats)
+        # opt.video_encoding_size = self.visual_encoding_size * self.num_feats
 
     def set_ss_prob(self, p):
         self.ss_prob = p
@@ -1300,16 +1285,7 @@ class CaptionModelConceptsDT(nn.Module):
         self.logit.bias.data.fill_(0)
         self.logit.weight.data.uniform_(-initrange, initrange)
 
-    def init_hidden(self, batch_size):
-        weight = next(self.parameters()).data
-
-        if self.rnn_type == 'lstm':
-            return (Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_()),
-                    Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_()))
-        else:
-            return Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_())
-
-    def concept_generator(self, feats, bfeats, pos=None, expand_feat=0):
+    def concept_generator(self, feats, bfeats, pos=None, expand_feat=1):
 
         # encode all of the global features into a single space
         encoded_global_feats = list()
@@ -1324,8 +1300,9 @@ class CaptionModelConceptsDT(nn.Module):
 
         #### ENCODER ####
         encoded_features = self.concept_encoder(visual_features.permute(1, 0, 2))  # change to (time, batch, channel)
-        encoded_features = self.feat_expander(encoded_features.permute(1, 0, 2))  # change to (batch, time, channel)
-        encoded_features = encoded_features.permute(1, 0, 2)  # change to (time, batch, channel)
+        if expand_feat:
+            encoded_features = self.feat_expander(encoded_features.permute(1, 0, 2))  # change to (batch, time, channel)
+            encoded_features = encoded_features.permute(1, 0, 2)  # change to (time, batch, channel)
         #### END ENCODER ####
 
         #### DECODER ####
@@ -1338,13 +1315,11 @@ class CaptionModelConceptsDT(nn.Module):
             concept_embeddings = concept_embeddings[:-1]  # remove the last concept
             assert encoded_features.shape[-1] == concept_embeddings.shape[-1], print(encoded_features.shape[-1], concept_embeddings.shape[-1])
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.n_concepts).cuda()
-            out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask)   # out is target shp
-
-            # generate a concept
+            out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask)
             out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
 
-            concept_prob = F.log_softmax(self.logit(out), dim=-1)
-            concept_idx = F.softmax(self.logit(out), dim=-1).argmax(-1)
+            concept_probs = F.log_softmax(self.logit(out), dim=-1)
+            concept_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
 
         else:  # auto-regressive prediction at inference
             concept_embeddings = torch.zeros((self.n_concepts+1, encoded_features.size(1), self.textual_encoding_size)).cuda()
@@ -1363,135 +1338,125 @@ class CaptionModelConceptsDT(nn.Module):
                 else:
                     # pass raw decoder as input
                     concept_embeddings[i+1] = decoder_output[-1]
-
-            concept_prob = concept_probs
-            concept_idx = concept_idxs
         #### END DECODER ####
 
-        return concept_prob, concept_idx
+        return concept_probs, concept_idxs
 
-    def forward(self, feats, bfeats, seq, pos):
-        fc_feats = self.feat_pool(feats, stack=True)
-        fc_feats = self.feat_expander(fc_feats)
-        fc_feats = fc_feats.permute(1, 0, 2)  # change to (time, batch, channel)
+    def forward(self, gfeats, bfeats, seq, pos):
 
         # get the svo features and vocab indexs
-        svo_out, svo_it = self.concept_generator(feats, bfeats, pos)
+        svo_out, svo_it = self.concept_generator(gfeats, bfeats, pos)
 
         if self.training:
             svo_embs = self.embed(pos)
         else:
             svo_embs = self.embed(svo_it)
+        if not self.pass_all_svo:
+            svo_embs = svo_embs[:, 1:2]
+
         svo_embs = svo_embs.permute(1, 0, 2)  # change to (time, batch, channel)
 
+        fc_feats = self.feat_pool(gfeats, stack=True)
+        fc_feats = self.feat_expander(fc_feats)
+        fc_feats = fc_feats.permute(1, 0, 2)  # change to (time, batch, channel)
         encoded_features = torch.cat([fc_feats, svo_embs], dim=0)  # cat the vis feats and the svo
 
-        # -- if <image feature> is input at the first step, use index -1
-        # -- the <eos> token is not used for training
-        start_i = -1 if self.model_type == 'standard' else 0
-        end_i = seq.size(1) - 1
-
-        caption_embeddings = self.embed(seq)
+        caption_embeddings = self.embed(seq)  # emb indexs -> embeddings
         caption_embeddings = caption_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
-        tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, seq.size(-1)).cuda()
-        tgt_key_padding_mask = (seq == 0)
-        out = self.caption_decoder(caption_embeddings, encoded_features,
-                                   tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)  # out is target shp
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, seq.size(-1)).cuda()  # create sequence mask
+        tgt_key_padding_mask = (seq == 0)  # create padding mask
 
-        # generate a concept
+        # Run the decoder
+        out = self.caption_decoder(caption_embeddings,
+                                   encoded_features,
+                                   tgt_mask=tgt_mask,
+                                   tgt_key_padding_mask=tgt_key_padding_mask)
+
         out = out[:-1].permute(1, 0, 2)  # remove the last token and change back to (batch, concepts, channels)
+        caption_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)  # calc word probs
+        caption_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)  # get best word indexs (not used)
 
-        word_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)
-        word_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
-
-        sample_seq = seq[:, 1:]
-        # sample_logprobs = word_probs.gather(1, sample_seq.unsqueeze(-1))  # dont know why but this errors so need loop as below
-        sample_logprobs = []
-        for token_idx in range(start_i, end_i):
-            it = seq[:, token_idx+1].clone()  # get indexs of gt words
-            logprobs = word_probs.permute(1, 0, 2)[token_idx].gather(1, it.unsqueeze(1))  # get prediction probs at those locations
-            sample_logprobs.append(logprobs.view(-1))
-        sample_logprobs = torch.cat([_.unsqueeze(1) for _ in sample_logprobs], 1)
+        caption_seq = seq[:, 1:]  # get gt caption (minus the BOS token)
+        caption_logprobs = caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2)
 
         # output size is: B x L x V (where L is truncated lengths
         # which are different for different batch)
-        return word_probs, sample_seq, sample_logprobs, svo_out, svo_it, svo_out.gather(2, svo_it.unsqueeze(2)).squeeze(2)
+        return caption_probs, caption_seq, caption_logprobs, svo_out, svo_it, svo_out.gather(2, svo_it.unsqueeze(2)).squeeze(2)
 
     def sample(self, feats, bfeats, pos, opt={}):
-        sample_max = opt.get('sample_max', 1)
         beam_size = opt.get('beam_size', 1)
-        temperature = opt.get('temperature', 1.0)
         expand_feat = opt.get('expand_feat', 0)
 
         svo_out, svo_it = self.concept_generator(feats, bfeats, expand_feat=expand_feat)
         if beam_size > 1:
-            return (*self.sample_beam(feats, bfeats, pos, opt)), svo_out, svo_it
-
-        fc_feats = self.feat_pool(feats)
-        if expand_feat == 1:
-            fc_feats = self.feat_expander(fc_feats)
-        batch_size = fc_feats.size(0)
-        state = self.init_hidden(batch_size)
-
-        seq = []
-        seqLogprobs = []
-
-        unfinished = fc_feats.data.new(batch_size).fill_(1).byte()
-
-        # -- if <image feature> is input at the first step, use index -1
-        start_i = -1 if self.model_type == 'standard' else 0
-        end_i = self.seq_length - 1
-
-        for token_idx in range(start_i, end_i):
-            if token_idx == -1:
-                xt = fc_feats  # todo was (544,1024) could encode 1024->textual_encoding_size
-                # xt = torch.zeros((fc_feats.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
-            else:
-                if token_idx == 0:  # input <bos>
-                    it = fc_feats.data.new(batch_size).long().fill_(self.bos_index)
-                elif sample_max == 1:
-                    # output here is a Tensor, because we don't use backprop
-                    sampleLogprobs, it = torch.max(logprobs.data, 1)
-                    it = it.view(-1).long()
-                else:
-                    if temperature == 1.0:
-                        # fetch prev distribution: shape Nx(M+1)
-                        prob_prev = torch.exp(logprobs.data).cpu()
-                    else:
-                        # scale logprobs by temperature
-                        prob_prev = torch.exp(torch.div(logprobs.data, temperature)).cpu()
-                    it = torch.multinomial(prob_prev, 1).cuda()
-                    # gather the logprobs at sampled positions
-                    sampleLogprobs = logprobs.gather(1, Variable(it, requires_grad=False))
-                    # and flatten indices for downstream processing
-                    it = it.view(-1).long()
-
-                lan_cont = self.embed(torch.cat((svo_it[:, 1:2], it.unsqueeze(1)), 1))
-                hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
-                alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
-                alpha = F.softmax(alpha, dim=1).transpose(1, 2)
-                xt = torch.matmul(alpha, lan_cont).squeeze(1)
-
-            if token_idx >= 1:
-                unfinished = unfinished * (it > 0)
-
-                it = it * unfinished.type_as(it)
-                seq.append(it)
-                seqLogprobs.append(sampleLogprobs.view(-1))
-
-                # requires EOS token = 0
-                if unfinished.sum() == 0:
-                    break
-
-            if self.model_type == 'standard':
-                output, state = self.core(xt, state)
-            else:
-                if self.model_type == 'manet':
-                    fc_feats = self.manet(fc_feats, state[0])
-                output, state = self.core(torch.cat([xt, fc_feats], 1), state)
-
-            logprobs = F.log_softmax(self.logit(output), dim=1)
-        return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1), svo_out, svo_it
+            return ((*self.sample_beam(feats, bfeats, pos, opt)), svo_out, svo_it)
+        else:
+            return NotImplementedError
+        # fc_feats = self.feat_pool(feats)
+        # if expand_feat == 1:
+        #     fc_feats = self.feat_expander(fc_feats)
+        # batch_size = fc_feats.size(0)
+        # state = self.init_hidden(batch_size)
+        #
+        # seq = []
+        # seqLogprobs = []
+        #
+        # unfinished = fc_feats.data.new(batch_size).fill_(1).byte()
+        #
+        # # -- if <image feature> is input at the first step, use index -1
+        # start_i = -1 if self.model_type == 'standard' else 0
+        # end_i = self.seq_length - 1
+        #
+        # for token_idx in range(start_i, end_i):
+        #     if token_idx == -1:
+        #         xt = fc_feats  # todo was (544,1024) could encode 1024->textual_encoding_size
+        #         # xt = torch.zeros((fc_feats.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
+        #     else:
+        #         if token_idx == 0:  # input <bos>
+        #             it = fc_feats.data.new(batch_size).long().fill_(self.bos_index)
+        #         elif sample_max == 1:
+        #             # output here is a Tensor, because we don't use backprop
+        #             sampleLogprobs, it = torch.max(logprobs.data, 1)
+        #             it = it.view(-1).long()
+        #         else:
+        #             if temperature == 1.0:
+        #                 # fetch prev distribution: shape Nx(M+1)
+        #                 prob_prev = torch.exp(logprobs.data).cpu()
+        #             else:
+        #                 # scale logprobs by temperature
+        #                 prob_prev = torch.exp(torch.div(logprobs.data, temperature)).cpu()
+        #             it = torch.multinomial(prob_prev, 1).cuda()
+        #             # gather the logprobs at sampled positions
+        #             sampleLogprobs = logprobs.gather(1, Variable(it, requires_grad=False))
+        #             # and flatten indices for downstream processing
+        #             it = it.view(-1).long()
+        #
+        #         lan_cont = self.embed(torch.cat((svo_it[:, 1:2], it.unsqueeze(1)), 1))
+        #         hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
+        #         alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
+        #         alpha = F.softmax(alpha, dim=1).transpose(1, 2)
+        #         xt = torch.matmul(alpha, lan_cont).squeeze(1)
+        #
+        #     if token_idx >= 1:
+        #         unfinished = unfinished * (it > 0)
+        #
+        #         it = it * unfinished.type_as(it)
+        #         seq.append(it)
+        #         seqLogprobs.append(sampleLogprobs.view(-1))
+        #
+        #         # requires EOS token = 0
+        #         if unfinished.sum() == 0:
+        #             break
+        #
+        #     if self.model_type == 'standard':
+        #         output, state = self.core(xt, state)
+        #     else:
+        #         if self.model_type == 'manet':
+        #             fc_feats = self.manet(fc_feats, state[0])
+        #         output, state = self.core(torch.cat([xt, fc_feats], 1), state)
+        #
+        #     logprobs = F.log_softmax(self.logit(output), dim=1)
+        # return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1), svo_out, svo_it
 
     def sample_beam(self, feats, bfeats, pos, opt={}):
         """
@@ -1501,7 +1466,6 @@ class CaptionModelConceptsDT(nn.Module):
         fc_feats = self.feat_pool(feats, stack=True)
         svo_out, svo_it = self.concept_generator(feats, bfeats, expand_feat=0)
         batch_size = fc_feats.size(0)
-        svo_it = svo_it.reshape(batch_size, -1, svo_it.size(-1))[:, 0]  # todo fixed batching issue
 
         seq = torch.LongTensor(self.seq_length, batch_size).zero_()
         seqLogprobs = torch.FloatTensor(self.seq_length, batch_size)
@@ -1509,7 +1473,6 @@ class CaptionModelConceptsDT(nn.Module):
 
         self.done_beams = [[] for _ in range(batch_size)]
         for k in range(batch_size):
-            state = self.init_hidden(beam_size)
             fc_feats_k = fc_feats[k].expand(beam_size, self.num_feats, self.visual_encoding_size)
             svo_it_k = svo_it[k].expand(beam_size, 3)
             # pos_k = pos[(k - 1) * 20].expand(beam_size, 3)
@@ -1525,13 +1488,9 @@ class CaptionModelConceptsDT(nn.Module):
 
             its = torch.LongTensor(self.seq_length, beam_size).zero_().cuda()
             for token_idx in range(start_i, end_i):
-                if token_idx == -1:
-                    xt = fc_feats_k  # todo was (544,1024) could encode 1024->textual_encoding_size
-                    xt = torch.zeros((fc_feats_k.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
-                elif token_idx == 0:  # input <bos>
+                if token_idx == 0:  # input <bos>
                     it = fc_feats.data.new(beam_size).long().fill_(self.bos_index)  # [1,1,1,1,1]
                     its[token_idx] = it
-                    xt = self.embed(Variable(it, requires_grad=False))
                 else:
                     """perform a beam merge. that is,
                     for every previous beam we now many new possibilities to branch out
@@ -1557,7 +1516,6 @@ class CaptionModelConceptsDT(nn.Module):
                     candidates = sorted(candidates, key=lambda x: -x['p'])
 
                     # construct new beams
-                    new_state = [_.clone() for _ in state]
                     if token_idx > 1:
                         # well need these as reference when we fork beams
                         # around
@@ -1570,14 +1528,6 @@ class CaptionModelConceptsDT(nn.Module):
                         if token_idx > 1:
                             beam_seq[:token_idx - 1, vix] = beam_seq_prev[:, v['q']]
                             beam_seq_logprobs[:token_idx - 1, vix] = beam_seq_logprobs_prev[:, v['q']]
-
-                        # rearrange recurrent states
-                        for state_ix in range(len(new_state)):
-                            # copy over state in previous beam q to new beam at
-                            # vix
-                            new_state[state_ix][
-                                0, vix] = state[state_ix][
-                                0, v['q']]  # dimension one is time step
 
                         # append new end terminal at the end of this beam
                         # c'th word is the continuation
@@ -1602,45 +1552,18 @@ class CaptionModelConceptsDT(nn.Module):
                     # encode as vectors
                     it = Variable(beam_seq[token_idx - 1].cuda())
                     its[token_idx] = it
-                    # if self.pass_all_svo:
-                    #     lan_cont = self.embed(
-                    #         torch.cat((svo_it_k[:, 0:1], svo_it_k[:, 1:2], svo_it_k[:, 2:3], it.unsqueeze(1)), 1))
-                    #     hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 4, state[0].shape[2])
-                    # else:
-                    #     lan_cont = self.embed(torch.cat((svo_it_k[:, 1:2], it.unsqueeze(1)), 1))
-                    #     hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
-                    # alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
-                    # alpha = F.softmax(alpha, dim=1).transpose(1, 2)
-                    # xt = torch.matmul(alpha, lan_cont).squeeze(1)
 
-                if token_idx >= 1:
-                    state = new_state
+                svo_embs = self.embed(svo_it_k)
 
-                if self.model_type == 'standard':
-                    output, state = self.core(xt, state)
-                else:
-                    if self.model_type == 'manet':
-                        fc_feats_k = self.manet(fc_feats_k, state[0])
-                    # output, state = self.core(torch.cat([xt, fc_feats_k], 1), state) ####################################################
+                encoded_features = torch.cat([fc_feats_k, svo_embs], dim=1).permute(1, 0, 2)  # change to (time, batch, channel)  # cat the vis feats and the svo
+                decoder_input = self.embed(its[:token_idx+1])
+                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, token_idx + 1).cuda()
+                decoder_output = self.caption_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
 
-                    svo_embs = self.embed(svo_it_k)
-
-                    encoded_features = torch.cat([fc_feats_k, svo_embs], dim=1).permute(1, 0, 2)  # change to (time, batch, channel)  # cat the vis feats and the svo
-                    decoder_input = self.embed(its[:token_idx+1])
-                    tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, token_idx + 1).cuda()
-                    decoder_output = self.caption_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
-
-                    # if self.clamp_nearest: # find nearest actual concept
-                    #     word_embeddings[token_idx + 1] = self.embed(F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1))
-                    # else:
-                    #     # pass raw decoder as input
-                    #     word_embeddings[token_idx + 1] = decoder_output[-1]
-                    # outputs[token_idx] = F.log_softmax(self.logit(decoder_output[-1]), dim=1)
-                    output = decoder_output[-1]
+                output = decoder_output[-1]
 
                 logprobs = F.log_softmax(self.logit(output), dim=1)
 
-            # self.done_beams[k] = sorted(self.done_beams[k], key=lambda x: -x['p'])
             self.done_beams[k] = sorted(self.done_beams[k], key=lambda x: x['ppl'])
 
             # the first beam has highest cumulative score

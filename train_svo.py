@@ -4,7 +4,6 @@ import torch.nn as nn
 from torch.autograd import Variable
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
-import numpy as np
 import os
 import sys
 import random
@@ -20,7 +19,7 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_concepts import CaptionModelConcepts, CaptionModelSVO, CaptionModelConceptsDT
+from model_concepts import SVORNN, CONRNN, CONTRA
 
 import utils
 import opts_svo as opts
@@ -360,7 +359,6 @@ def validate(model, criterion, loader, opt):
 
         seq, logseq, _, seq_svo = model.sample(feats, bfeats, labels_svo, {'beam_size': opt.beam_size})
         sents = utils.decode_sequence(opt.vocab, seq)
-        seq_svo = seq_svo.reshape(-1, opt.test_seq_per_img, seq_svo.size(-1))[:, 0]  # todo fixed batching issue
         sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
         if opt.output_logp == 1:
             test_avglogp = utils.compute_avglogp(seq, logseq)
@@ -512,12 +510,20 @@ if __name__ == '__main__':
     opt.history_file = opt.model_file.replace('.pth', '_history.json', 1)
 
     logger.info('Building model...')
-    if opt.exp_type in ['default']:
-        model = CaptionModelSVO(opt)
-    elif opt.exp_type in ['transformer01']:
-        model = CaptionModelConcepts(opt)
-    elif opt.exp_type in ['transformer02']:
-        model = CaptionModelConceptsDT(opt)
+    if opt.captioner_type in ['lstm', 'gru', 'rnn']:
+        if opt.filter_type in ['svo_original']:
+            model = SVORNN(opt)
+        elif opt.filter_type in ['svo_transformer']:
+            model = CONRNN(opt)
+        else:
+            raise NotImplementedError
+    elif opt.captioner_type in ['transformer']:
+        if opt.filter_type in ['svo_transformer']:
+            model = CONTRA(opt)
+        else:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
 
     xe_criterion = CrossEntropyCriterion()
     rl_criterion = RewardCriterion()

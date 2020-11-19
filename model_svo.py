@@ -108,9 +108,9 @@ class RNNUnit(nn.Module):
 
     def __init__(self, opt):
         super(RNNUnit, self).__init__()
-        self.rnn_type = opt.rnn_type
-        self.rnn_size = opt.rnn_size
-        self.num_layers = opt.num_layers
+        self.captioner_type = opt.captioner_type
+        self.captioner_size = opt.captioner_size
+        self.captioner_layers = opt.captioner_layers
         self.drop_prob_lm = opt.drop_prob_lm
 
         if opt.model_type == 'standard':
@@ -118,7 +118,7 @@ class RNNUnit(nn.Module):
         elif opt.model_type in ['concat', 'manet']:
             self.input_size = opt.input_encoding_size + opt.video_encoding_size
 
-        self.rnn = getattr(nn, self.rnn_type.upper())(self.input_size, self.rnn_size, self.num_layers, bias=False, dropout=self.drop_prob_lm)
+        self.rnn = getattr(nn, self.captioner_type.upper())(self.input_size, self.captioner_size, self.captioner_layers, bias=False, dropout=self.drop_prob_lm)
 
     def forward(self, xt, state):
         output, state = self.rnn(xt.unsqueeze(0), state)
@@ -130,19 +130,19 @@ class MANet(nn.Module):
     MANet: Modal Attention
     """
 
-    def __init__(self, video_encoding_size, rnn_size, num_feats):
+    def __init__(self, video_encoding_size, captioner_size, num_feats):
         super(MANet, self).__init__()
         self.video_encoding_size = video_encoding_size
-        self.rnn_size = rnn_size
+        self.captioner_size = captioner_size
         self.num_feats = num_feats
 
         self.f_feat_m = nn.Linear(self.video_encoding_size, self.num_feats)
-        self.f_h_m = nn.Linear(self.rnn_size, self.num_feats)
+        self.f_h_m = nn.Linear(self.captioner_size, self.num_feats)
         self.align_m = nn.Linear(self.num_feats, self.num_feats)
 
     def forward(self, x, h):
         f_feat = self.f_feat_m(x)
-        f_h = self.f_h_m(h.squeeze(0))  # assuming now num_layers is 1
+        f_h = self.f_h_m(h.squeeze(0))  # assuming now captioner_layers is 1
         att_weight = nn.Softmax()(self.align_m(nn.Tanh()(f_feat + f_h)))
         att_weight = att_weight.unsqueeze(2).expand(
             x.size(0), self.num_feats, int(self.video_encoding_size / self.num_feats))
@@ -159,10 +159,10 @@ class CaptionModel(nn.Module):
         super(CaptionModel, self).__init__()
         self.vocab_size = opt.vocab_size
         self.input_encoding_size = opt.input_encoding_size
-        self.rnn_type = opt.rnn_type
-        self.rnn_size = opt.rnn_size
+        self.captioner_type = opt.captioner_type
+        self.captioner_size = opt.captioner_size
         self.att_size = opt.att_size
-        self.num_layers = opt.num_layers
+        self.captioner_layers = opt.captioner_layers
         self.drop_prob_lm = opt.drop_prob_lm
         self.seq_length = opt.seq_length
         self.bfeat_dims = opt.bfeat_dims
@@ -176,49 +176,49 @@ class CaptionModel(nn.Module):
         self.attention_record = list()
 
         self.embed = nn.Embedding(self.vocab_size, self.input_encoding_size)  # word embedding layer (1-hot -> enc)
-        self.logit = nn.Linear(self.rnn_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
+        self.logit = nn.Linear(self.captioner_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
         self.dropout = nn.Dropout(self.drop_prob_lm)
 
         self.l2a_layer = nn.Linear(self.input_encoding_size, self.att_size)
-        self.h2a_layer = nn.Linear(self.rnn_size, self.att_size)
+        self.h2a_layer = nn.Linear(self.captioner_size, self.att_size)
         self.att_layer = nn.Linear(self.att_size, 1)
 
         self.init_weights()
         if self.model_type == 'standard':
-            self.feat_pool = FeatPool(self.feat_dims[0:1], self.num_layers * self.rnn_size, self.drop_prob_lm)
+            self.feat_pool = FeatPool(self.feat_dims[0:1], self.captioner_layers * self.captioner_size, self.drop_prob_lm)
         else:
-            self.feat_pool = FeatPool(self.feat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm)
+            self.feat_pool = FeatPool(self.feat_dims, self.captioner_layers * self.captioner_size, self.drop_prob_lm)
 
             # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
-            self.bfeat_pool_q = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+            self.bfeat_pool_q = FeatPool(self.bfeat_dims, self.captioner_layers * self.captioner_size, self.drop_prob_lm,
                                          SQUEEZE=False)
-            self.bfeat_pool_k = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+            self.bfeat_pool_k = FeatPool(self.bfeat_dims, self.captioner_layers * self.captioner_size, self.drop_prob_lm,
                                          SQUEEZE=False)
-            self.bfeat_pool_v = FeatPool(self.bfeat_dims, self.num_layers * self.rnn_size, self.drop_prob_lm,
+            self.bfeat_pool_v = FeatPool(self.bfeat_dims, self.captioner_layers * self.captioner_size, self.drop_prob_lm,
                                          SQUEEZE=False)
 
             # encode the visual features (linear>relu>dropout)
             # 2d cnn -> subject 1536>1024 and 4096>1024
-            self.feat_pool_ds = FeatPool(self.feat_dims[0:1], self.num_layers * 2 * self.rnn_size, self.drop_prob_lm,
+            self.feat_pool_ds = FeatPool(self.feat_dims[0:1], self.captioner_layers * 2 * self.captioner_size, self.drop_prob_lm,
                                          SQUEEZE=False)
             # 2d cnn and verb enc feat -> object .. 1536>512 and 512>512
-            self.feat_pool_do = FeatPool([self.feat_dims[0], self.input_encoding_size], self.num_layers * self.rnn_size,
+            self.feat_pool_do = FeatPool([self.feat_dims[0], self.input_encoding_size], self.captioner_layers * self.captioner_size,
                                          self.drop_prob_lm, SQUEEZE=False)
             # 3d cnn and subject enc feat -> verb .. 4096>512 and 512>512
-            self.feat_pool_dv = FeatPool([self.feat_dims[1], self.input_encoding_size], self.num_layers * self.rnn_size,
+            self.feat_pool_dv = FeatPool([self.feat_dims[1], self.input_encoding_size], self.captioner_layers * self.captioner_size,
                                          self.drop_prob_lm, SQUEEZE=False)
 
-            self.feat_pool_f2h = FeatPool([2 * self.rnn_size], self.num_layers * self.rnn_size, self.drop_prob_lm,
+            self.feat_pool_f2h = FeatPool([2 * self.captioner_size], self.captioner_layers * self.captioner_size, self.drop_prob_lm,
                                           SQUEEZE=False)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
 
-        self.video_encoding_size = self.num_feats * self.num_layers * self.rnn_size
+        self.video_encoding_size = self.num_feats * self.captioner_layers * self.captioner_size
         opt.video_encoding_size = self.video_encoding_size
         self.core = RNNUnit(opt)  # the caption generation rnn LSTM(512) with input size 2048
 
         if self.model_type == 'manet':
-            self.manet = MANet(self.video_encoding_size, self.rnn_size, self.num_feats)
+            self.manet = MANet(self.video_encoding_size, self.captioner_size, self.num_feats)
 
     def set_ss_prob(self, p):
         self.ss_prob = p
@@ -245,11 +245,11 @@ class CaptionModel(nn.Module):
     def init_hidden(self, batch_size):
         weight = next(self.parameters()).data
 
-        if self.rnn_type == 'lstm':
-            return (Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_()),
-                    Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_()))
+        if self.captioner_type == 'lstm':
+            return (Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_()),
+                    Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_()))
         else:
-            return Variable(weight.new(self.num_layers, batch_size, self.rnn_size).zero_())
+            return Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_())
 
     def _svo_step(self, feats, bfeats, pos=None, expand_feat=1):
         # encode the box features with linear->relu->dropout layer into query, key, value feats
