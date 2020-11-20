@@ -1245,6 +1245,9 @@ class CONTRA(nn.Module):
         # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
         self.box_encoder = FeatPool(self.bfeat_dims, int(self.visual_encoding_size/2), self.drop_prob_lm, SQUEEZE=False)  # TODO replace with new box encoder
 
+        # encode word positions
+        self.pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.seq_length)
+
         # Concept Prediction module (visual feature encoder > k concepts decoder)
         concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_encoder_heads,
                                                            dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
@@ -1363,6 +1366,7 @@ class CONTRA(nn.Module):
 
         caption_embeddings = self.embed(seq)  # emb indexs -> embeddings
         caption_embeddings = caption_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
+        caption_embeddings = self.pos_encoder(caption_embeddings)  # add positional encoding
         tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, seq.size(-1)).cuda()  # create sequence mask
         tgt_key_padding_mask = (seq == 0)  # create padding mask
 
@@ -1558,6 +1562,8 @@ class CONTRA(nn.Module):
                 encoded_features = torch.cat([fc_feats_k, svo_embs], dim=1).permute(1, 0, 2)  # change to (time, batch, channel)  # cat the vis feats and the svo
                 decoder_input = self.embed(its[:token_idx+1])
                 tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, token_idx + 1).cuda()
+
+                decoder_input = self.pos_encoder(decoder_input)  # add positional encoding
                 decoder_output = self.caption_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
 
                 output = decoder_output[-1]
