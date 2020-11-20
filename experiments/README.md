@@ -93,15 +93,15 @@ MSVD Test Set Results:
         <td>0.0490</td>
     </tr>
     <tr>
-        <td><code><a href="transformer02_cc">transformer02_cc</a></code></td>
-        <td>0.7489</td>
-        <td>0.6196</td>
-        <td>0.5187</td>
-        <td>0.4179</td>
-        <td>0.3102</td>
-        <td>0.6647</td>
-        <td>0.6393</td>
-        <td>0.0451</td>
+        <td><code><a href="transformer02_111111">transformer02_111111</a></code></td>
+        <td>0.7524</td>
+        <td>0.6234</td>
+        <td>0.5273</td>
+        <td>0.4282</td>
+        <td>0.3047</td>
+        <td>0.6674</td>
+        <td>0.6223</td>
+        <td>0.0414</td>
     </tr>
 </table>
 
@@ -185,15 +185,15 @@ MSRVTT Test Set Results:
         <td>0.0600</td>
     </tr>
     <tr>
-        <td><code><a href="transformer02_cc">transformer02_cc</a></code></td>
-        <td>0.7567</td>
-        <td>0.6262</td>
-        <td>0.4979</td>
-        <td>0.3821</td>
-        <td>0.2647</td>
-        <td>0.5867</td>
-        <td>0.4451</td>
-        <td>0.0581</td>
+        <td><code><a href="transformer02_111111">transformer02_111111</a></code></td>
+        <td>0.7660</td>
+        <td>0.6211</td>
+        <td>0.4882</td>
+        <td>0.3727</td>
+        <td>0.2650</td>
+        <td>0.5858</td>
+        <td>0.4249</td>
+        <td>0.0579</td>
     </tr>
 </table>
 
@@ -295,18 +295,6 @@ MSVD Val Set Results (best CIDEr epoch):
         <td>0.9205</td>
         <td>0.0480</td>
     </tr>
-    <tr>
-        <td><code><a href="transformer02_cc">transformer02_cc</a></code></td>
-        <td>80</td>
-        <td>0.7570</td>
-        <td>0.6350</td>
-        <td>0.5455</td>
-        <td>0.4570</td>
-        <td>0.3111</td>
-        <td>0.6787</td>
-        <td>0.7975</td>
-        <td>0.0479</td>
-    </tr>
 </table>
 
 MSRVTT Val Set Results (best CIDEr epoch):
@@ -394,18 +382,6 @@ MSRVTT Val Set Results (best CIDEr epoch):
         <td>0.6042</td>
         <td>0.4856</td>
         <td>0.0627</td>
-    </tr>
-    <tr>
-        <td><code><a href="transformer02_cc">transformer02_cc</a></code></td>
-        <td>117</td>
-        <td>0.7671</td>
-        <td>0.6248</td>
-        <td>0.4881</td>
-        <td>0.3704</td>
-        <td>0.2649</td>
-        <td>0.5799</td>
-        <td>0.4381</td>
-        <td>0.0569</td>
     </tr>
 </table>
 
@@ -759,14 +735,17 @@ python train_svo.py --exp_type transformer01
                     --clamp_concepts 1
 </pre>
 
-<h3><code><a href="transformer02_cc">transformer02_cc</a></code></h3>
-The same as the <code>transformer01_cc</code> however using a transformer decoder for caption generation.
+<h3><code><a href="transformer02_111111">transformer02_111111</a></code></h3>
+The same as the <code>transformer01_all_svo_cc</code> however using a transformer decoder for caption generation.
+By default <code>clamp_concepts</code> and <code>pass_all_svo</code> are both set to 1.
 
+The six numbers <code>111111</code> refer to the number of layers and heads of the visual encoder, concepts decoder and caption decoder respectively.
 To train MSVD:
 <pre>
-python train_svo.py --exp_type transformer02
-                    --model_file experiments/transformer02_cc/msvd.pth
-                    --result_file experiments/transformer02_cc/msvd.json
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type transformer
+                    --model_file experiments/transformer02_111111/msvd.pth
+                    --result_file experiments/transformer02_111111/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
                     --val_label_h5 datasets/msvd/metadata/msvd_val_sequencelabel.h5
                     --test_label_h5 datasets/msvd/metadata/msvd_test_sequencelabel.h5
@@ -788,13 +767,20 @@ python train_svo.py --exp_type transformer02
                     --labda 12.0
                     --pass_all_svo 1
                     --clamp_concepts 1
+                    --filter_encoder_layers 1
+                    --filter_encoder_heads 1
+                    --filter_decoder_layers 1
+                    --filter_decoder_heads 1
+                    --captioner_layers 1
+                    --captioner_heads 1
 </pre>
 
 To train MSRVTT:
 <pre>
-python train_svo.py --exp_type transformer02
-                    --model_file experiments/transformer02_cc/msrvtt.pth
-                    --result_file experiments/transformer02_cc/msrvtt.json
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type transformer
+                    --model_file experiments/transformer02_111111/msrvtt.pth
+                    --result_file experiments/transformer02_111111/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
                     --val_label_h5 datasets/msrvtt/metadata/msrvtt_val_sequencelabel.h5
                     --test_label_h5 datasets/msrvtt/metadata/msrvtt_test_sequencelabel.h5
@@ -810,10 +796,16 @@ python train_svo.py --exp_type transformer02
                     --fr_size_h5 datasets/msrvtt/features/msrvtt_fr_size.h5
                     --train_seq_per_img 20
                     --test_seq_per_img 20
-                    --batch_size 8
+                    --batch_size 32
                     --test_batch_size 4
                     --max_epochs 200
                     --labda 20.0
                     --pass_all_svo 1
                     --clamp_concepts 1
+                    --filter_encoder_layers 1
+                    --filter_encoder_heads 1
+                    --filter_decoder_layers 1
+                    --filter_decoder_heads 1
+                    --captioner_layers 1
+                    --captioner_heads 1
 </pre>
