@@ -103,6 +103,52 @@ MSVD Test Set Results:
         <td>0.6223</td>
         <td>0.0414</td>
     </tr>
+    <tr>
+        <td><code><a href="transformer02_222222">transformer02_222222</a></code></td>
+        <td>0.7466</td>
+        <td>0.6250</td>
+        <td>0.5341</td>
+        <td>0.4426</td>
+        <td>0.3120</td>
+        <td>0.6639</td>
+        <td>0.7286</td>
+        <td>0.0462</td>
+    </tr>
+    <tr>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_111112">transformer02_111112</a></code></td>
+        <td>0.7285</td>
+        <td>0.6024</td>
+        <td>0.5086</td>
+        <td>0.4136</td>
+        <td>0.2972</td>
+        <td>0.6507</td>
+        <td>0.6382</td>
+        <td>0.0417</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_111114">transformer02_111114</a></code></td>
+        <td>0.7562</td>
+        <td>0.6323</td>
+        <td>0.5367</td>
+        <td>0.4393</td>
+        <td>0.3110</td>
+        <td>0.6656</td>
+        <td>0.6635</td>
+        <td>0.0433</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_111118">transformer02_111118</a></code></td>
+        <td>0.7505</td>
+        <td>0.6194</td>
+        <td>0.5218</td>
+        <td>0.4230</td>
+        <td>0.3035</td>
+        <td>0.6658</td>
+        <td>0.6599</td>
+        <td>0.0437</td>
+    </tr>
 </table>
 
 MSRVTT Test Set Results:
