@@ -666,6 +666,8 @@ python train_svo.py --exp_type transformer01
 The same as the <code>transformer01</code> however instead of just conditioning the LSTM input on the verb and past word, we condition on the sub, verb and obj as well as previous word.
 
 <code>--clamp_concepts 0</code> means that the concept decoder outputs are fed as-is back into the decoder as input, which at inference time results in bad SVO predictions for the verb and object (it repeats the subject, not sure why this occurs with the raw decoder embeddings). However unlike <code><a href="transformer01">transformer01</a></code> the results are good despite poor SVOs, unsure why this is at the moment.
+
+The better performance here might point to a bad word embedding, since even if we clamp to the embeddings it's worse than allowing the model to find its own space.
 To train MSVD:
 <pre>
 python train_svo.py --exp_type transformer01
