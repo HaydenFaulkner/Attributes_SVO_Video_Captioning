@@ -115,6 +115,15 @@ MSVD Test Set Results:
         <td>0.0462</td>
     </tr>
     <tr>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
     </tr>
     <tr>
         <td><code><a href="transformer02_111112">transformer02_111112</a></code></td>
@@ -148,6 +157,138 @@ MSVD Test Set Results:
         <td>0.6658</td>
         <td>0.6599</td>
         <td>0.0437</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_111121">transformer02_111121</a></code></td>
+        <td>0.7447</td>
+        <td>0.6180</td>
+        <td>0.5213</td>
+        <td>0.4192</td>
+        <td>0.3072</td>
+        <td>0.6622</td>
+        <td>0.6424</td>
+        <td>0.0431</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_111141">transformer02_111141</a></code></td>
+        <td>0.7479</td>
+        <td>0.6209</td>
+        <td>0.5234</td>
+        <td>0.4242</td>
+        <td>0.3093</td>
+        <td>0.6590</td>
+        <td>0.6653</td>
+        <td>0.0434</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_111211">transformer02_111211</a></code></td>
+        <td>0.7585</td>
+        <td>0.6350</td>
+        <td>0.5377</td>
+        <td>0.4338</td>
+        <td>0.3158</td>
+        <td>0.6740</td>
+        <td>0.6322</td>
+        <td>0.0430</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_111411">transformer02_111411</a></code></td>
+        <td>0.7528</td>
+        <td>0.6294</td>
+        <td>0.5336</td>
+        <td>0.4356</td>
+        <td>0.3093</td>
+        <td>0.6688</td>
+        <td>0.6492</td>
+        <td>0.0416</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_111811">transformer02_111811</a></code></td>
+        <td>0.7458</td>
+        <td>0.6240</td>
+        <td>0.5302</td>
+        <td>0.4314</td>
+        <td>0.3098</td>
+        <td>0.6696</td>
+        <td>0.6504</td>
+        <td>0.0421</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_112111">transformer02_112111</a></code></td>
+        <td>0.7550</td>
+        <td>0.6294</td>
+        <td>0.5322</td>
+        <td>0.4297</td>
+        <td>0.3070</td>
+        <td>0.6692</td>
+        <td>0.6761</td>
+        <td>0.0431</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_114111">transformer02_114111</a></code></td>
+        <td>0.7465</td>
+        <td>0.6112</td>
+        <td>0.5120</td>
+        <td>0.4076</td>
+        <td>0.2977</td>
+        <td>0.6622</td>
+        <td>0.5789</td>
+        <td>0.0377</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_121111">transformer02_121111</a></code></td>
+        <td>0.7588</td>
+        <td>0.6345</td>
+        <td>0.5362</td>
+        <td>0.4318</td>
+        <td>0.3148</td>
+        <td>0.6706</td>
+        <td>0.6333</td>
+        <td>0.0424</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_141111">transformer02_141111</a></code></td>
+        <td>0.7568</td>
+        <td>0.6268</td>
+        <td>0.5287</td>
+        <td>0.4277</td>
+        <td>0.3041</td>
+        <td>0.6703</td>
+        <td>0.6307</td>
+        <td>0.0409</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_181111">transformer02_181111</a></code></td>
+        <td>0.7591</td>
+        <td>0.6309</td>
+        <td>0.5322</td>
+        <td>0.4309</td>
+        <td>0.3109</td>
+        <td>0.6726</td>
+        <td>0.6491</td>
+        <td>0.0424</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_211111">transformer02_211111</a></code></td>
+        <td>0.7447</td>
+        <td>0.6154</td>
+        <td>0.5154</td>
+        <td>0.4126</td>
+        <td>0.3096</td>
+        <td>0.6702</td>
+        <td>0.6263</td>
+        <td>0.0426</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_411111">transformer02_411111</a></code></td>
+        <td>0.7520</td>
+        <td>0.6246</td>
+        <td>0.5232</td>
+        <td>0.4123</td>
+        <td>0.3087</td>
+        <td>0.6666</td>
+        <td>0.5559</td>
+        <td>0.0392</td>
     </tr>
 </table>
 
@@ -240,6 +381,17 @@ MSRVTT Test Set Results:
         <td>0.5858</td>
         <td>0.4249</td>
         <td>0.0579</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer02_222222">transformer02_222222</a></code></td>
+        <td>0.7616</td>
+        <td>0.6249</td>
+        <td>0.4940</td>
+        <td>0.3779</td>
+        <td>0.2638</td>
+        <td>0.5839</td>
+        <td>0.4431</td>
+        <td>0.0577</td>
     </tr>
 </table>
 
