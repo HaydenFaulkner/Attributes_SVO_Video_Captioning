@@ -126,6 +126,39 @@ MSVD Test Set Results:
         <td>0.0434</td>
     </tr>
     <tr>
+        <td><code><a href="transformer03_1111">transformer03_1111</a></code></td>
+        <td>0.7333</td>
+        <td>0.6042</td>
+        <td>0.5042</td>
+        <td>0.4014</td>
+        <td>0.2958</td>
+        <td>0.6525</td>
+        <td>0.6277</td>
+        <td>0.0428</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer03_2222">transformer03_2222</a></code></td>
+        <td>0.7520</td>
+        <td>0.6212</td>
+        <td>0.5196</td>
+        <td>0.4183</td>
+        <td>0.3074</td>
+        <td>0.6628</td>
+        <td>0.6587</td>
+        <td>0.0452</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer03_4444">transformer03_4444</a></code></td>
+        <td>0.7472</td>
+        <td>0.6187</td>
+        <td>0.5234</td>
+        <td>0.4272</td>
+        <td>0.3033</td>
+        <td>0.6562</td>
+        <td>0.6543</td>
+        <td>0.0428</td>
+    </tr>
+    <tr>
         <td></td>
         <td></td>
         <td></td>
