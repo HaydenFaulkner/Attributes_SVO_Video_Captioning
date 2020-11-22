@@ -147,7 +147,7 @@ def parse_opts():
             'svo_original',
             'svo_transformer',
             'concept_transformer',
-            'visual_encoder'],
+            'visual_encoder_only'],
         help='type of the filtering prior to captioning')
     parser.add_argument(
         '--filter_encoder_size',

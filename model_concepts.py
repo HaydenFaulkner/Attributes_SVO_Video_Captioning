@@ -1192,6 +1192,378 @@ class CONRNN(nn.Module):
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
+class SINTRA(nn.Module):
+    """
+    A concepts captioning model, with direct connection, no svo/concepts filtering
+    """
+
+    def __init__(self, opt):
+        super(SINTRA, self).__init__()
+        self.vocab_size = opt.vocab_size
+        self.bfeat_dims = opt.bfeat_dims
+        self.feat_dims = opt.feat_dims
+        self.num_feats = len(self.feat_dims)
+
+        self.textual_encoding_size = opt.input_encoding_size
+        self.visual_encoding_size = opt.input_encoding_size
+        self.filter_encoder_layers = opt.filter_encoder_layers
+        self.filter_encoder_heads = opt.filter_encoder_heads
+        self.filter_decoder_layers = opt.filter_decoder_layers
+        self.filter_decoder_heads = opt.filter_decoder_heads
+
+        self.captioner_type = opt.captioner_type
+        self.captioner_size = opt.captioner_size
+        self.captioner_layers = opt.captioner_layers
+        self.captioner_heads = opt.captioner_heads
+
+        assert self.captioner_size == self.textual_encoding_size, print(self.captioner_size, self.textual_encoding_size)
+
+        self.drop_prob_lm = opt.drop_prob_lm
+        self.seq_length = opt.seq_length
+        self.seq_per_img = opt.train_seq_per_img
+        self.model_type = opt.model_type
+        self.pass_all_svo = opt.pass_all_svo
+        self.clamp_nearest = opt.clamp_concepts
+        self.n_concepts =  3 # opt.n_concepts # todo fix
+        self.bos_index = 1  # index of the <bos> token
+        self.ss_prob = 0
+        self.mixer_from = 0
+        self.attention_record = list()
+
+        self.embed = nn.Embedding(self.vocab_size, self.textual_encoding_size)  # word embedding layer (1-hot -> enc)
+        self.logit = nn.Linear(self.textual_encoding_size, self.vocab_size)  # logit embedding layer (enc -> vocab enc)
+        self.dropout = nn.Dropout(self.drop_prob_lm)
+
+        self.feat_pool = FeatPool(self.feat_dims, self.visual_encoding_size, self.drop_prob_lm)
+
+        # encode the visual features (linear>relu>dropout)
+        self.global_encoders = list()
+        for feat_dim in self.feat_dims:
+            self.global_encoders.append(nn.Sequential(nn.Linear(feat_dim, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm)))
+        self.global_encoders = nn.ModuleList(self.global_encoders)
+
+        # encode the box features 1024 -> 512 and 4 -> 512 (linear>relu>dropout)
+        self.box_encoder = FeatPool(self.bfeat_dims, int(self.visual_encoding_size/2), self.drop_prob_lm, SQUEEZE=False)  # TODO replace with new box encoder
+
+        # encode word positions
+        self.pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.seq_length)
+
+        # Concept Prediction module (visual feature encoder > k concepts decoder)
+        concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_encoder_heads,
+                                                           dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
+        self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.filter_encoder_layers)
+        #
+        # concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_decoder_heads,
+        #                                                    dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+        # self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.filter_decoder_layers)
+
+        # Caption Prediction Module (a decoder on the global feats and k concept embeddings)
+        caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.captioner_heads,
+                                                           dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+        self.caption_decoder = nn.TransformerDecoder(caption_decoder_layer, num_layers=self.captioner_layers)
+
+        self.feat_expander = FeatExpander(self.seq_per_img)
+
+        # opt.video_encoding_size = self.visual_encoding_size * self.num_feats
+
+    def set_ss_prob(self, p):
+        self.ss_prob = p
+
+    def set_mixer_from(self, t):
+        """Set values of mixer_from
+        if mixer_from > 0 then start MIXER training
+        i.e:
+        from t = 0 -> t = mixer_from -1: use XE training
+        from t = mixer_from -> end: use RL training
+        """
+        self.mixer_from = t
+
+    def set_seq_per_img(self, x):
+        self.seq_per_img = x
+        self.feat_expander.set_n(x)
+
+    def init_weights(self):
+        initrange = 0.1
+        self.embed.weight.data.uniform_(-initrange, initrange)
+        self.logit.bias.data.fill_(0)
+        self.logit.weight.data.uniform_(-initrange, initrange)
+
+    def visual_encoder(self, feats, bfeats, expand_feat=1):
+
+        # encode all of the global features into a single space
+        encoded_global_feats = list()
+        for global_feat, global_encoder in zip(feats, self.global_encoders):
+            encoded_global_feats.append(global_encoder(global_feat))
+
+        # encode the boxes into a similar space [cat(enc(1024>512), enc(4>512))]
+        encoded_boxes = self.box_encoder(bfeats)
+
+        # concat the box features to the global features
+        visual_features = torch.cat(encoded_global_feats + [encoded_boxes], dim=-2)
+
+        #### ENCODER ####
+        encoded_features = self.concept_encoder(visual_features.permute(1, 0, 2))  # change to (time, batch, channel)
+        if expand_feat:
+            encoded_features = self.feat_expander(encoded_features.permute(1, 0, 2))  # change to (batch, time, channel)
+            encoded_features = encoded_features.permute(1, 0, 2)  # change to (time, batch, channel)
+        #### END ENCODER ####
+
+        return encoded_features
+
+    # def concept_decoder_forward(self, encoded_features, pos):
+    #     #### DECODER ####
+    #     # embed the concepts
+    #     if self.training and pos is not None:
+    #         concept_embeddings = self.embed(pos)
+    #         concept_embeddings = concept_embeddings.permute(1,0,2) # change to (time, batch, channel)
+    #         assert self.n_concepts == concept_embeddings.size(0), print(self.n_concepts, concept_embeddings.size(0))
+    #         concept_embeddings = F.pad(concept_embeddings, (0, 0, 0, 0, 1, 0), "constant", 0)  # prepend with zero pad for first word 'our <bos> persay'
+    #         concept_embeddings = concept_embeddings[:-1]  # remove the last concept
+    #         assert encoded_features.shape[-1] == concept_embeddings.shape[-1], print(encoded_features.shape[-1], concept_embeddings.shape[-1])
+    #         tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.n_concepts).cuda()
+    #         out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask)
+    #         out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
+    #
+    #         concept_probs = F.log_softmax(self.logit(out), dim=-1)
+    #         concept_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
+    #
+    #     else:  # auto-regressive prediction at inference
+    #         concept_embeddings = torch.zeros((self.n_concepts+1, encoded_features.size(1), self.textual_encoding_size)).cuda()
+    #         concept_probs = torch.zeros((encoded_features.size(1), self.n_concepts, self.vocab_size)).cuda()
+    #         concept_idxs = torch.zeros((encoded_features.size(1), self.n_concepts), dtype=torch.long).cuda()
+    #         for i in range(self.n_concepts):
+    #             decoder_input = concept_embeddings[:i+1]
+    #             tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i+1).cuda()
+    #             decoder_output = self.concept_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
+    #
+    #             concept_idxs[:, i] = F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1)
+    #             concept_probs[:, i] = F.log_softmax(self.logit(decoder_output[-1]), dim=-1)
+    #             if self.clamp_nearest:
+    #                 # find nearest actual concept
+    #                 concept_embeddings[i+1] = self.embed(concept_idxs[:, i])
+    #             else:
+    #                 # pass raw decoder as input
+    #                 concept_embeddings[i+1] = decoder_output[-1]
+    #         concept_embeddings = concept_embeddings[1:].permute(1, 0 ,2)
+    #     #### END DECODER ####
+    #
+    #     return concept_probs, concept_idxs, concept_embeddings
+
+    def forward(self, gfeats, bfeats, seq, pos):
+
+        encoded_features = self.visual_encoder(gfeats, bfeats)
+
+        caption_embeddings = self.embed(seq)  # emb indexs -> embeddings
+        caption_embeddings = caption_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
+        caption_embeddings = self.pos_encoder(caption_embeddings)  # add positional encoding
+        tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, seq.size(-1)).cuda()  # create sequence mask
+        tgt_key_padding_mask = (seq == 0)  # create padding mask
+
+        # Run the decoder
+        out = self.caption_decoder(caption_embeddings,
+                                   encoded_features,
+                                   tgt_mask=tgt_mask,
+                                   tgt_key_padding_mask=tgt_key_padding_mask)
+
+        out = out[:-1].permute(1, 0, 2)  # remove the last token and change back to (batch, concepts, channels)
+        caption_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)  # calc word probs
+        caption_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)  # get best word indexs (not used)
+
+        caption_seq = seq[:, 1:]  # get gt caption (minus the BOS token)
+        caption_logprobs = caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2)
+
+        # output size is: B x L x V (where L is truncated lengths
+        # which are different for different batch)
+        return caption_probs, caption_seq, caption_logprobs, None, None, None
+
+    def sample(self, feats, bfeats, pos, opt={}):
+        beam_size = opt.get('beam_size', 1)
+        expand_feat = opt.get('expand_feat', 0)
+
+        if beam_size > 1:
+            return ((*self.sample_beam(feats, bfeats, pos, opt)), None, None)
+        else:
+            return NotImplementedError
+        # fc_feats = self.feat_pool(feats)
+        # if expand_feat == 1:
+        #     fc_feats = self.feat_expander(fc_feats)
+        # batch_size = fc_feats.size(0)
+        # state = self.init_hidden(batch_size)
+        #
+        # seq = []
+        # seqLogprobs = []
+        #
+        # unfinished = fc_feats.data.new(batch_size).fill_(1).byte()
+        #
+        # # -- if <image feature> is input at the first step, use index -1
+        # start_i = -1 if self.model_type == 'standard' else 0
+        # end_i = self.seq_length - 1
+        #
+        # for token_idx in range(start_i, end_i):
+        #     if token_idx == -1:
+        #         xt = fc_feats  # todo was (544,1024) could encode 1024->textual_encoding_size
+        #         # xt = torch.zeros((fc_feats.size(0), self.textual_encoding_size)).cuda()  # todo init set as zeros (544,512)
+        #     else:
+        #         if token_idx == 0:  # input <bos>
+        #             it = fc_feats.data.new(batch_size).long().fill_(self.bos_index)
+        #         elif sample_max == 1:
+        #             # output here is a Tensor, because we don't use backprop
+        #             sampleLogprobs, it = torch.max(logprobs.data, 1)
+        #             it = it.view(-1).long()
+        #         else:
+        #             if temperature == 1.0:
+        #                 # fetch prev distribution: shape Nx(M+1)
+        #                 prob_prev = torch.exp(logprobs.data).cpu()
+        #             else:
+        #                 # scale logprobs by temperature
+        #                 prob_prev = torch.exp(torch.div(logprobs.data, temperature)).cpu()
+        #             it = torch.multinomial(prob_prev, 1).cuda()
+        #             # gather the logprobs at sampled positions
+        #             sampleLogprobs = logprobs.gather(1, Variable(it, requires_grad=False))
+        #             # and flatten indices for downstream processing
+        #             it = it.view(-1).long()
+        #
+        #         lan_cont = self.embed(torch.cat((svo_it[:, 1:2], it.unsqueeze(1)), 1))
+        #         hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])
+        #         alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))
+        #         alpha = F.softmax(alpha, dim=1).transpose(1, 2)
+        #         xt = torch.matmul(alpha, lan_cont).squeeze(1)
+        #
+        #     if token_idx >= 1:
+        #         unfinished = unfinished * (it > 0)
+        #
+        #         it = it * unfinished.type_as(it)
+        #         seq.append(it)
+        #         seqLogprobs.append(sampleLogprobs.view(-1))
+        #
+        #         # requires EOS token = 0
+        #         if unfinished.sum() == 0:
+        #             break
+        #
+        #     if self.model_type == 'standard':
+        #         output, state = self.core(xt, state)
+        #     else:
+        #         if self.model_type == 'manet':
+        #             fc_feats = self.manet(fc_feats, state[0])
+        #         output, state = self.core(torch.cat([xt, fc_feats], 1), state)
+        #
+        #     logprobs = F.log_softmax(self.logit(output), dim=1)
+        # return torch.cat([_.unsqueeze(1) for _ in seq], 1), torch.cat([_.unsqueeze(1) for _ in seqLogprobs], 1), svo_out, svo_it
+
+    def sample_beam(self, feats, bfeats, pos, opt={}):
+        """
+        modified from https://github.com/ruotianluo/self-critical.pytorch
+        """
+        beam_size = opt.get('beam_size', 5)
+        # fc_feats = self.feat_pool(feats, stack=True)
+        encoded_features = self.visual_encoder(feats, bfeats, expand_feat=0).permute(1,0,2)
+        batch_size = encoded_features.size(0)
+
+        seq = torch.LongTensor(self.seq_length, batch_size).zero_()
+        seqLogprobs = torch.FloatTensor(self.seq_length, batch_size)
+        # lets process every image independently for now, for simplicity
+
+        self.done_beams = [[] for _ in range(batch_size)]
+        for k in range(batch_size):
+            encoded_features_k = encoded_features[k].expand(beam_size, encoded_features.size(1), self.visual_encoding_size)
+
+            beam_seq = torch.LongTensor(self.seq_length, beam_size).zero_()
+            beam_seq_logprobs = torch.FloatTensor(self.seq_length, beam_size).zero_()
+            # running sum of logprobs for each beam
+            beam_logprobs_sum = torch.zeros(beam_size)
+
+            # -- if <image feature> is input at the first step, use index -1
+            start_i = -1 if self.model_type == 'standard' else 0
+            end_i = self.seq_length - 1
+
+            its = torch.LongTensor(self.seq_length, beam_size).zero_().cuda()
+            for token_idx in range(start_i, end_i):
+                if token_idx == 0:  # input <bos>
+                    it = encoded_features.data.new(beam_size).long().fill_(self.bos_index)  # [1,1,1,1,1]
+                    its[token_idx] = it
+                else:
+                    """perform a beam merge. that is,
+                    for every previous beam we now many new possibilities to branch out
+                    we need to resort our beams to maintain the loop invariant of keeping
+                    the top beam_size most likely sequences."""
+                    logprobsf = logprobs.float()  # lets go to CPU for more efficiency in indexing operations
+                    # sorted array of logprobs along each previous beam (last
+                    # true = descending)
+                    ys, ix = torch.sort(logprobsf, 1, True)
+                    candidates = []
+                    cols = min(beam_size, ys.size(1))
+                    rows = beam_size
+                    if token_idx == 1:  # at first time step only the first beam is active
+                        rows = 1
+                    for c in range(cols):
+                        for q in range(rows):
+                            # compute logprob of expanding beam q with word in
+                            # (sorted) position c
+                            local_logprob = ys[q, c]
+                            candidate_logprob = beam_logprobs_sum[q] + local_logprob
+                            candidates.append(
+                                {'c': ix.data[q, c], 'q': q, 'p': candidate_logprob.item(), 'r': local_logprob.item()})
+                    candidates = sorted(candidates, key=lambda x: -x['p'])
+
+                    # construct new beams
+                    if token_idx > 1:
+                        # well need these as reference when we fork beams
+                        # around
+                        beam_seq_prev = beam_seq[:token_idx - 1].clone()
+                        beam_seq_logprobs_prev = beam_seq_logprobs[:token_idx - 1].clone()
+
+                    for vix in range(beam_size):
+                        v = candidates[vix]
+                        # fork beam index q into index vix
+                        if token_idx > 1:
+                            beam_seq[:token_idx - 1, vix] = beam_seq_prev[:, v['q']]
+                            beam_seq_logprobs[:token_idx - 1, vix] = beam_seq_logprobs_prev[:, v['q']]
+
+                        # append new end terminal at the end of this beam
+                        # c'th word is the continuation
+                        beam_seq[token_idx - 1, vix] = v['c']
+                        beam_seq_logprobs[token_idx - 1, vix] = v['r']  # the raw logprob here
+                        # the new (sum) logprob along this beam
+                        beam_logprobs_sum[vix] = v['p']
+
+                        if v['c'] == 0 or token_idx == self.seq_length - 2:
+                            # END token special case here, or we reached the end.
+                            # add the beam to a set of done beams
+                            if token_idx > 1:
+                                ppl = np.exp(-beam_logprobs_sum[vix] / (token_idx - 1))
+                            else:
+                                ppl = 10000
+                            self.done_beams[k].append({'seq': beam_seq[:, vix].clone(),
+                                                       'logps': beam_seq_logprobs[:, vix].clone(),
+                                                       'p': beam_logprobs_sum[vix],
+                                                       'ppl': ppl
+                                                       })
+
+                    # encode as vectors
+                    it = Variable(beam_seq[token_idx - 1].cuda())
+                    its[token_idx] = it
+
+
+
+                encoded_features_k = encoded_features_k.permute(1, 0, 2)  # change to (time, batch, channel)  # cat the vis feats and the svo
+                decoder_input = self.embed(its[:token_idx+1])
+                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, token_idx + 1).cuda()
+
+                decoder_input = self.pos_encoder(decoder_input)  # add positional encoding
+                decoder_output = self.caption_decoder(decoder_input, encoded_features_k, tgt_mask=tgt_mask)
+
+                output = decoder_output[-1]
+
+                logprobs = F.log_softmax(self.logit(output), dim=1)
+
+            self.done_beams[k] = sorted(self.done_beams[k], key=lambda x: x['ppl'])
+
+            # the first beam has highest cumulative score
+            seq[:, k] = self.done_beams[k][0]['seq']
+            seqLogprobs[:, k] = self.done_beams[k][0]['logps']
+
+        return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
+
 class CONTRA(nn.Module):
     """
     A concepts captioning model

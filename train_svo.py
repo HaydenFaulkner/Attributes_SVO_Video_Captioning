@@ -19,7 +19,7 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_concepts import SVORNN, CONRNN, CONTRA
+from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA
 
 import utils
 import opts_svo as opts
@@ -217,13 +217,17 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         else:
             pred, _, _, pred_svo, svo_it, svo_gath = model(feats, bfeats, labels, labels_svo)
             loss_cap = criterion(pred, labels[:, 1:], masks[:, 1:], bcmrscores=torch.from_numpy(data['bcmrscores'].astype(np.float32)).cuda())
-            loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
-            if random.random() < 0.05:  # compare the svos during training
-                print('---------------------')
-                print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))
-                print(utils.decode_sequence(opt.vocab, labels_svo)[:5])
-                print(utils.decode_sequence(opt.vocab, svo_it)[:5])
-            loss = loss_cap + (opt.labda/10.0)*loss_svo
+            if opt.filter_type in ['visual_encoder_only']:
+                loss = loss_cap
+            else:
+                loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
+                if random.random() < 0.05:  # compare the svos during training
+                    print('---------------------')
+                    print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))
+                    print(utils.decode_sequence(opt.vocab, labels_svo)[:5])
+                    print(utils.decode_sequence(opt.vocab, svo_it)[:5])
+                loss = loss_cap + (opt.labda/10.0)*loss_svo
+
             
 
         loss.backward()
@@ -235,7 +239,10 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
 
         infos['TrainLoss'] = loss.item()
         infos['CAPTrainLoss'] = loss_cap.item()
-        infos['SVOTrainLoss'] = loss_svo.item()
+        if opt.filter_type not in ['visual_encoder_only']:
+            infos['SVOTrainLoss'] = loss_svo.item()
+        else:
+            infos['SVOTrainLoss'] = 0
         infos['mixer_from'] = mixer_from
         infos['scb_captions'] = scb_captions
 
@@ -359,20 +366,33 @@ def validate(model, criterion, loader, opt):
 
         seq, logseq, _, seq_svo = model.sample(feats, bfeats, labels_svo, {'beam_size': opt.beam_size})
         sents = utils.decode_sequence(opt.vocab, seq)
-        sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
         if opt.output_logp == 1:
             test_avglogp = utils.compute_avglogp(seq, logseq)
             test_avglogps.extend(test_avglogp)
 
-        for jj, (sent, sent_svo) in enumerate(zip(sents, sents_svo)):
-            if opt.output_logp == 1:
-                entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'avglogp': test_avglogp[jj], 'box_att': model.attention_record[jj].tolist()}
-            else:
-                entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
-            predictions.append(entry)
-            logger.debug('[%d] video %s: %s (%s)' % (jj, entry['image_id'], entry['caption'], entry['svo']))
+        if seq_svo is not None:
+            sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
+
+            for jj, (sent, sent_svo) in enumerate(zip(sents, sents_svo)):
+                if opt.output_logp == 1:
+                    entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'avglogp': test_avglogp[jj], 'box_att': model.attention_record[jj].tolist()}
+                else:
+                    entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
+                predictions.append(entry)
+                logger.debug('[%d] video %s: %s (%s)' % (jj, entry['image_id'], entry['caption'], entry['svo']))
+        else:
+
+            for jj, sent in enumerate(sents):
+                if opt.output_logp == 1:
+                    entry = {'image_id': data['ids'][jj], 'caption': sent, 'avglogp': test_avglogp[jj], 'box_att': model.attention_record[jj].tolist()}
+                else:
+                    entry = {'image_id': data['ids'][jj], 'caption': sent}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
+                predictions.append(entry)
+                logger.debug('[%d] video %s: %s' % (jj, entry['image_id'], entry['caption']))
+
         del feats, labels, masks, labels_svo, seq, logseq
         torch.cuda.empty_cache()
+
     loss = round(loss_sum / num_iters, 3)
     results = {}
     lang_stats = {}
@@ -520,6 +540,8 @@ if __name__ == '__main__':
     elif opt.captioner_type in ['transformer']:
         if opt.filter_type in ['svo_transformer']:
             model = CONTRA(opt)
+        elif opt.filter_type in ['visual_encoder_only']:
+            model = SINTRA(opt)
         else:
             raise NotImplementedError
     else:
