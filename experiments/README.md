@@ -115,6 +115,17 @@ MSVD Test Set Results:
         <td>0.0462</td>
     </tr>
     <tr>
+        <td><code><a href="transformer02_444444">transformer02_444444</a></code></td>
+        <td>0.7287</td>
+        <td>0.5973</td>
+        <td>0.5007</td>
+        <td>0.4034</td>
+        <td>0.2964</td>
+        <td>0.6417</td>
+        <td>0.6389</td>
+        <td>0.0434</td>
+    </tr>
+    <tr>
         <td></td>
         <td></td>
         <td></td>
@@ -589,7 +600,8 @@ Trying to replicate the paper results, mine come out a little worse, unsure why.
 
 To train MSVD:
 <pre>
-python train_svo.py --exp_type default
+python train_svo.py --filter_type svo_original
+                    --captioner_type lstm
                     --model_file experiments/default/msvd.pth
                     --result_file experiments/default/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
@@ -615,7 +627,8 @@ python train_svo.py --exp_type default
 
 To train MSRVTT:
 <pre>
-python train_svo.py --exp_type default
+python train_svo.py --filter_type svo_original
+                    --captioner_type lstm
                     --model_file experiments/default/msrvtt.pth
                     --result_file experiments/default/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
@@ -644,7 +657,8 @@ The same as the default however instead of just conditioning the LSTM input on t
 
 To train MSVD:
 <pre>
-python train_svo.py --exp_type default
+python train_svo.py --filter_type svo_original
+                    --captioner_type lstm
                     --model_file experiments/default_all_svo/msvd.pth
                     --result_file experiments/default_all_svo/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
@@ -671,7 +685,8 @@ python train_svo.py --exp_type default
 
 To train MSRVTT:
 <pre>
-python train_svo.py --exp_type default
+python train_svo.py --filter_type svo_original
+                    --captioner_type lstm
                     --model_file experiments/default_all_svo/msrvtt.pth
                     --result_file experiments/default_all_svo/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
@@ -703,7 +718,8 @@ Uses a transformer encoder-decoder to calculate the SVO triplets.
 
 To train MSVD:
 <pre>
-python train_svo.py --exp_type transformer01
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type lstm
                     --model_file experiments/transformer01/msvd.pth
                     --result_file experiments/transformer01/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
@@ -730,7 +746,8 @@ python train_svo.py --exp_type transformer01
 
 To train MSRVTT:
 <pre>
-python train_svo.py --exp_type transformer01
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type lstm
                     --model_file experiments/transformer01/msrvtt.pth
                     --result_file experiments/transformer01/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
@@ -762,7 +779,8 @@ Uses a transformer encoder-decoder to calculate the SVO triplets. This is most s
 
 To train MSVD:
 <pre>
-python train_svo.py --exp_type transformer01
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type lstm
                     --model_file experiments/transformer01_cc/msvd.pth
                     --result_file experiments/transformer01_cc/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
@@ -789,7 +807,8 @@ python train_svo.py --exp_type transformer01
 
 To train MSRVTT:
 <pre>
-python train_svo.py --exp_type transformer01
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type lstm
                     --model_file experiments/transformer01_cc/msrvtt.pth
                     --result_file experiments/transformer01_cc/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
@@ -822,7 +841,8 @@ The same as the <code>transformer01</code> however instead of just conditioning 
 The better performance here might point to a bad word embedding, since even if we clamp to the embeddings it's worse than allowing the model to find its own space.
 To train MSVD:
 <pre>
-python train_svo.py --exp_type transformer01
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type lstm
                     --model_file experiments/transformer01_all_svo/msvd.pth
                     --result_file experiments/transformer01_all_svo/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
@@ -850,7 +870,8 @@ python train_svo.py --exp_type transformer01
 
 To train MSRVTT:
 <pre>
-python train_svo.py --exp_type transformer01
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type lstm
                     --model_file experiments/transformer01_all_svo/msrvtt.pth
                     --result_file experiments/transformer01_all_svo/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
@@ -881,7 +902,8 @@ The same as the <code>transformer01_cc</code> however instead of just conditioni
 
 To train MSVD:
 <pre>
-python train_svo.py --exp_type transformer01
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type lstm
                     --model_file experiments/transformer01_all_svo_cc/msvd.pth
                     --result_file experiments/transformer01_all_svo_cc/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
@@ -909,7 +931,8 @@ python train_svo.py --exp_type transformer01
 
 To train MSRVTT:
 <pre>
-python train_svo.py --exp_type transformer01
+python train_svo.py --filter_type svo_transformer
+                    --captioner_type lstm
                     --model_file experiments/transformer01_all_svo_cc/msrvtt.pth
                     --result_file experiments/transformer01_all_svo_cc/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5
