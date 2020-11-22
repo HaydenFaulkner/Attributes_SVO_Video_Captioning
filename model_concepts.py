@@ -1341,19 +1341,23 @@ class CONTRA(nn.Module):
                 else:
                     # pass raw decoder as input
                     concept_embeddings[i+1] = decoder_output[-1]
+            concept_embeddings = concept_embeddings[1:].permute(1, 0 ,2)
         #### END DECODER ####
 
-        return concept_probs, concept_idxs
+        return concept_probs, concept_idxs, concept_embeddings
 
     def forward(self, gfeats, bfeats, seq, pos):
 
         # get the svo features and vocab indexs
-        svo_out, svo_it = self.concept_generator(gfeats, bfeats, pos)
+        svo_out, svo_it, svo_emb = self.concept_generator(gfeats, bfeats, pos)
 
         if self.training:
             svo_embs = self.embed(pos)
         else:
-            svo_embs = self.embed(svo_it)
+            if self.clamp_nearest:
+                svo_embs = self.embed(svo_it)
+            else:
+                svo_embs = svo_emb
         if not self.pass_all_svo:
             svo_embs = svo_embs[:, 1:2]
 
@@ -1391,7 +1395,7 @@ class CONTRA(nn.Module):
         beam_size = opt.get('beam_size', 1)
         expand_feat = opt.get('expand_feat', 0)
 
-        svo_out, svo_it = self.concept_generator(feats, bfeats, expand_feat=expand_feat)
+        svo_out, svo_it, svo_emb = self.concept_generator(feats, bfeats, expand_feat=expand_feat)
         if beam_size > 1:
             return ((*self.sample_beam(feats, bfeats, pos, opt)), svo_out, svo_it)
         else:
@@ -1468,7 +1472,7 @@ class CONTRA(nn.Module):
         """
         beam_size = opt.get('beam_size', 5)
         fc_feats = self.feat_pool(feats, stack=True)
-        svo_out, svo_it = self.concept_generator(feats, bfeats, expand_feat=0)
+        svo_out, svo_it, svo_emb = self.concept_generator(feats, bfeats, expand_feat=0)
         batch_size = fc_feats.size(0)
 
         seq = torch.LongTensor(self.seq_length, batch_size).zero_()
@@ -1479,6 +1483,7 @@ class CONTRA(nn.Module):
         for k in range(batch_size):
             fc_feats_k = fc_feats[k].expand(beam_size, self.num_feats, self.visual_encoding_size)
             svo_it_k = svo_it[k].expand(beam_size, 3)
+            svo_emb_k = svo_emb[k].expand(beam_size, 3, self.textual_encoding_size)
             # pos_k = pos[(k - 1) * 20].expand(beam_size, 3)
 
             beam_seq = torch.LongTensor(self.seq_length, beam_size).zero_()
@@ -1557,7 +1562,13 @@ class CONTRA(nn.Module):
                     it = Variable(beam_seq[token_idx - 1].cuda())
                     its[token_idx] = it
 
-                svo_embs = self.embed(svo_it_k)
+                if self.clamp_nearest:
+                    svo_embs = self.embed(svo_it_k)
+                else:
+                    svo_embs = svo_emb_k  # todo test this
+
+                if not self.pass_all_svo:
+                    svo_embs = svo_embs[:, 1:2]
 
                 encoded_features = torch.cat([fc_feats_k, svo_embs], dim=1).permute(1, 0, 2)  # change to (time, batch, channel)  # cat the vis feats and the svo
                 decoder_input = self.embed(its[:token_idx+1])
