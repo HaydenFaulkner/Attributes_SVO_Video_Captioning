@@ -438,6 +438,17 @@ MSRVTT Test Set Results:
         <td>0.0577</td>
     </tr>
     <tr>
+        <td><code><a href="transformer02_444444">transformer02_444444</a></code></td>
+        <td>0.7610</td>
+        <td>0.6286</td>
+        <td>0.5008</td>
+        <td>0.3865</td>
+        <td>0.2636</td>
+        <td>0.5885</td>
+        <td>0.4518</td>
+        <td>0.0573</td>
+    </tr>
+    <tr>
         <td><code><a href="transformer03_1111">transformer03_1111</a></code></td>
         <td>0.7790</td>
         <td>0.6409</td>
@@ -458,6 +469,17 @@ MSRVTT Test Set Results:
         <td>0.5889</td>
         <td>0.4407</td>
         <td>0.0617</td>
+    </tr>
+    <tr>
+        <td><code><a href="transformer03_4444">transformer03_4444</a></code></td>
+        <td>0.7716</td>
+        <td>0.6246</td>
+        <td>0.4881</td>
+        <td>0.3703</td>
+        <td>0.2700</td>
+        <td>0.5819</td>
+        <td>0.4568</td>
+        <td>0.0631</td>
     </tr>
 </table>
 
