@@ -372,6 +372,17 @@ MSRVTT Test Set Results:
         <td>0.0654</td>
     </tr>
     <tr>
+        <td><code><a href="default_all_svo">default_all_svo</a></code></td>
+        <td>0.7828</td>
+        <td>0.6426</td>
+        <td>0.5078</td>
+        <td>0.3872</td>
+        <td>0.2732</td>
+        <td>0.6000</td>
+        <td>0.4574</td>
+        <td>0.0604</td>
+    </tr>
+    <tr>
         <td><code><a href="transformer01">transformer01</a></code></td>
         <td>0.7197</td>
         <td>0.5606</td>
