@@ -328,35 +328,38 @@ if __name__ == '__main__':
                                 #     if len(svo) > 0:
                                 #         svosb.add(' '.join([svo['subject'], svo['action'], svo['object']]))
 
-                            if type in ['all2']:
-                                gt_item['svos'] = list(svos)
-                                gt_test_out = dataset + '_' + split + '_proprocessedtokens_new2_svos.json'
-                        #     elif type in ['top2']:
-                        #         counts = dict()
-                        #         counts_sub = dict()
-                        #         counts_act = dict()
-                        #         counts_obj = dict()
-                        #         for svo in svosb:
-                        #             if svo['subject'] in counts_sub:
-                        #                 counts_sub[svo['subject']] += 1
-                        #             else:
-                        #                 counts_sub[svo['subject']] = 1
-                        #             if svo['action'] in counts_act:
-                        #                 counts_act[svo['action']] += 1
-                        #             else:
-                        #                 counts_act[svo['action']] = 1
-                        #             if svo['object'] in counts_obj:
-                        #                 counts_obj[svo['object']] += 1
-                        #             else:
-                        #                 counts_obj[svo['object']] = 1
-                        #
-                        #             svo_j = ','.join([svo['subject'], svo['action'], svo['object']])
-                        #             if svo_j in counts:
-                        #                 counts[svo_j] += 1
-                        #             else:
-                        #                 counts[svo_j] = 1
-                        #
-                        # print('----------------------------')
+                        if len(svos) < 1:
+                            svos.add(cap)
+
+                        if type in ['all2']:
+                            gt_item['svos'] = list(svos)
+                            gt_test_out = dataset + '_' + split + '_proprocessedtokens_new2_svos.json'
+                    #     elif type in ['top2']:
+                    #         counts = dict()
+                    #         counts_sub = dict()
+                    #         counts_act = dict()
+                    #         counts_obj = dict()
+                    #         for svo in svosb:
+                    #             if svo['subject'] in counts_sub:
+                    #                 counts_sub[svo['subject']] += 1
+                    #             else:
+                    #                 counts_sub[svo['subject']] = 1
+                    #             if svo['action'] in counts_act:
+                    #                 counts_act[svo['action']] += 1
+                    #             else:
+                    #                 counts_act[svo['action']] = 1
+                    #             if svo['object'] in counts_obj:
+                    #                 counts_obj[svo['object']] += 1
+                    #             else:
+                    #                 counts_obj[svo['object']] = 1
+                    #
+                    #             svo_j = ','.join([svo['subject'], svo['action'], svo['object']])
+                    #             if svo_j in counts:
+                    #                 counts[svo_j] += 1
+                    #             else:
+                    #                 counts[svo_j] = 1
+                    #
+                    # print('----------------------------')
             json.dump(gt_json, open(os.path.join(gt_file_path, gt_test_out), 'w'))
 
             make_h5(os.path.join(gt_file_path, gt_test_out))
