@@ -740,7 +740,7 @@ class CONRNN(nn.Module):
         self.model_type = opt.model_type
         self.pass_all_svo = opt.pass_all_svo
         self.clamp_nearest = opt.clamp_concepts
-        self.n_concepts =  3 # opt.n_concepts # todo fix
+        self.svo_length = opt.svo_length
         self.bos_index = 1  # index of the <bos> token
         self.ss_prob = 0
         self.mixer_from = 0
@@ -777,6 +777,9 @@ class CONRNN(nn.Module):
             concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
                                                                dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
             self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.filter_decoder_heads)
+
+            self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm,
+                                                  max_len=self.svo_length)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
 
@@ -840,14 +843,16 @@ class CONRNN(nn.Module):
         #### DECODER ####
         # embed the concepts
         if self.training and pos is not None:
+            pos = F.pad(pos, (1, 0, 0, 0), "constant", self.bos_index)
+            pos = pos[:, :-1]
             concept_embeddings = self.embed(pos)
             concept_embeddings = concept_embeddings.permute(1,0,2) # change to (time, batch, channel)
-            assert self.n_concepts == concept_embeddings.size(0), print(self.n_concepts, concept_embeddings.size(0))
-            concept_embeddings = F.pad(concept_embeddings, (0, 0, 0, 0, 1, 0), "constant", 0)  # prepend with zero pad for first word 'our <bos> persay'
-            concept_embeddings = concept_embeddings[:-1]  # remove the last concept
+            assert self.svo_length == concept_embeddings.size(0), print(self.svo_length, concept_embeddings.size(0))
             assert encoded_features.shape[-1] == concept_embeddings.shape[-1], print(encoded_features.shape[-1], concept_embeddings.shape[-1])
-            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.n_concepts).cuda()
-            out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask)   # out is target shp
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.svo_length).cuda()
+            tgt_key_padding_mask = (pos == 0)  # create padding mask
+            concept_embeddings = self.svo_pos_encoder(concept_embeddings)
+            out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)   # out is target shp
 
             # generate a concept
             out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
@@ -856,25 +861,24 @@ class CONRNN(nn.Module):
             concept_idx = F.softmax(self.logit(out), dim=-1).argmax(-1)
 
         else:  # auto-regressive prediction at inference
-            concept_embeddings = torch.zeros((self.n_concepts+1, encoded_features.size(1), self.textual_encoding_size)).cuda()
-            concept_probs = torch.zeros((encoded_features.size(1), self.n_concepts, self.vocab_size)).cuda()
-            concept_idxs = torch.zeros((encoded_features.size(1), self.n_concepts), dtype=torch.long).cuda()
-            for i in range(self.n_concepts):
-                decoder_input = concept_embeddings[:i+1]
-                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i+1).cuda()
+            concept_probs = torch.zeros((encoded_features.size(1), self.svo_length, self.vocab_size)).cuda()
+            concept_idxs = torch.zeros((encoded_features.size(1), self.svo_length), dtype=torch.long).cuda()
+            concept_idxs = F.pad(concept_idxs, (1, 0, 0, 0), "constant", self.bos_index)
+            for i in range(1, self.svo_length):
+                if self.clamp_nearest:
+                    decoder_input = self.embed(concept_idxs[:, :i])
+                else:
+                    decoder_input = decoder_output
+                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i).cuda()
+                decoder_input = decoder_input.permute(1,0,2)
+                decoder_input = self.svo_pos_encoder(decoder_input)  # add positional encoding
                 decoder_output = self.concept_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
 
                 concept_idxs[:, i] = F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1)
-                concept_probs[:, i] = F.log_softmax(self.logit(decoder_output[-1]), dim=-1)
-                if self.clamp_nearest:
-                    # find nearest actual concept
-                    concept_embeddings[i+1] = self.embed(concept_idxs[:, i])
-                else:
-                    # pass raw decoder as input
-                    concept_embeddings[i+1] = decoder_output[-1]
+                concept_probs[:, i-1] = F.log_softmax(self.logit(decoder_output[-1]), dim=-1)
 
             concept_prob = concept_probs
-            concept_idx = concept_idxs
+            concept_idx = concept_idxs[:, 1:]
         #### END DECODER ####
 
         return concept_prob, concept_idx
@@ -941,16 +945,19 @@ class CONRNN(nn.Module):
                     if self.pass_all_svo:
                         lan_cont = self.embed(torch.cat((pos, it.unsqueeze(1)),1))
                     else:
+                        assert self.svo_length == 3
                         lan_cont = self.embed(torch.cat((pos[:, 1:2], it.unsqueeze(1)), 1))  # (bs * seq_per_img, 2, 512)
                 else:
                     if self.pass_all_svo:
                         lan_cont = self.embed(torch.cat((svo_it, it.unsqueeze(1)),1))
                     else:
+                        assert self.svo_length == 3
                         lan_cont = self.embed(torch.cat((svo_it[:, 1:2], it.unsqueeze(1)), 1))
 
                 if self.pass_all_svo:
-                    hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 4, state[0].shape[2])  # (bs * seq_per_img, 4, 512)
+                    hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], self.svo_length+1, state[0].shape[2])  # (bs * seq_per_img, 4, 512)
                 else:
+                    assert self.svo_length == 3
                     hid_cont = state[0].transpose(0, 1).expand(lan_cont.shape[0], 2, state[0].shape[2])  # (bs * seq_per_img, 2, 512)
                 # calculate attention on encodings of the verb embedding and the RNN hidden state
                 alpha = self.att_layer(torch.tanh(self.l2a_layer(lan_cont) + self.h2a_layer(hid_cont)))  # (bs * seq_per_img, 2, 1)
@@ -1072,7 +1079,7 @@ class CONRNN(nn.Module):
         for k in range(batch_size):
             state = self.init_hidden(beam_size)
             fc_feats_k = fc_feats[k].expand(beam_size, self.visual_encoding_size*self.num_feats)
-            svo_it_k = svo_it[k].expand(beam_size, 3)
+            svo_it_k = svo_it[k].expand(beam_size, self.svo_length)
             # pos_k = pos[(k - 1) * 20].expand(beam_size, 3)
 
             beam_seq = torch.LongTensor(self.seq_length, beam_size).zero_()
@@ -1224,7 +1231,7 @@ class SINTRA(nn.Module):
         self.model_type = opt.model_type
         self.pass_all_svo = opt.pass_all_svo
         self.clamp_nearest = opt.clamp_concepts
-        self.n_concepts =  3 # opt.n_concepts # todo fix
+        self.svo_length =  3 # opt.svo_length # todo fix
         self.bos_index = 1  # index of the <bos> token
         self.ss_prob = 0
         self.mixer_from = 0
@@ -1316,11 +1323,11 @@ class SINTRA(nn.Module):
     #     if self.training and pos is not None:
     #         concept_embeddings = self.embed(pos)
     #         concept_embeddings = concept_embeddings.permute(1,0,2) # change to (time, batch, channel)
-    #         assert self.n_concepts == concept_embeddings.size(0), print(self.n_concepts, concept_embeddings.size(0))
+    #         assert self.svo_length == concept_embeddings.size(0), print(self.svo_length, concept_embeddings.size(0))
     #         concept_embeddings = F.pad(concept_embeddings, (0, 0, 0, 0, 1, 0), "constant", 0)  # prepend with zero pad for first word 'our <bos> persay'
     #         concept_embeddings = concept_embeddings[:-1]  # remove the last concept
     #         assert encoded_features.shape[-1] == concept_embeddings.shape[-1], print(encoded_features.shape[-1], concept_embeddings.shape[-1])
-    #         tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.n_concepts).cuda()
+    #         tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.svo_length).cuda()
     #         out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask)
     #         out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
     #
@@ -1328,10 +1335,10 @@ class SINTRA(nn.Module):
     #         concept_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
     #
     #     else:  # auto-regressive prediction at inference
-    #         concept_embeddings = torch.zeros((self.n_concepts+1, encoded_features.size(1), self.textual_encoding_size)).cuda()
-    #         concept_probs = torch.zeros((encoded_features.size(1), self.n_concepts, self.vocab_size)).cuda()
-    #         concept_idxs = torch.zeros((encoded_features.size(1), self.n_concepts), dtype=torch.long).cuda()
-    #         for i in range(self.n_concepts):
+    #         concept_embeddings = torch.zeros((self.svo_length+1, encoded_features.size(1), self.textual_encoding_size)).cuda()
+    #         concept_probs = torch.zeros((encoded_features.size(1), self.svo_length, self.vocab_size)).cuda()
+    #         concept_idxs = torch.zeros((encoded_features.size(1), self.svo_length), dtype=torch.long).cuda()
+    #         for i in range(self.svo_length):
     #             decoder_input = concept_embeddings[:i+1]
     #             tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i+1).cuda()
     #             decoder_output = self.concept_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
@@ -1596,7 +1603,7 @@ class CONTRA(nn.Module):
         self.model_type = opt.model_type
         self.pass_all_svo = opt.pass_all_svo
         self.clamp_nearest = opt.clamp_concepts
-        self.n_concepts =  3 # opt.n_concepts # todo fix
+        self.svo_length =  opt.svo_length
         self.bos_index = 1  # index of the <bos> token
         self.ss_prob = 0
         self.mixer_from = 0
@@ -1619,6 +1626,7 @@ class CONTRA(nn.Module):
 
         # encode word positions
         self.pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.seq_length)
+        self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.svo_length)
 
         # Concept Prediction module (visual feature encoder > k concepts decoder)
         concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_encoder_heads,
@@ -1683,53 +1691,56 @@ class CONTRA(nn.Module):
         #### DECODER ####
         # embed the concepts
         if self.training and pos is not None:
+            pos = F.pad(pos, (1, 0, 0, 0), "constant", self.bos_index)
+            pos = pos[:, :-1]
             concept_embeddings = self.embed(pos)
             concept_embeddings = concept_embeddings.permute(1,0,2) # change to (time, batch, channel)
-            assert self.n_concepts == concept_embeddings.size(0), print(self.n_concepts, concept_embeddings.size(0))
-            concept_embeddings = F.pad(concept_embeddings, (0, 0, 0, 0, 1, 0), "constant", 0)  # prepend with zero pad for first word 'our <bos> persay'
-            concept_embeddings = concept_embeddings[:-1]  # remove the last concept
+            assert self.svo_length == concept_embeddings.size(0), print(self.svo_length, concept_embeddings.size(0))
             assert encoded_features.shape[-1] == concept_embeddings.shape[-1], print(encoded_features.shape[-1], concept_embeddings.shape[-1])
-            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.n_concepts).cuda()
-            out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask)
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.svo_length).cuda()
+            tgt_key_padding_mask = (pos == 0)  # create padding mask
+            concept_embeddings = self.svo_pos_encoder(concept_embeddings)
+            out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)   # out is target shp
             out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
 
             concept_probs = F.log_softmax(self.logit(out), dim=-1)
             concept_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
 
+
         else:  # auto-regressive prediction at inference
-            concept_embeddings = torch.zeros((self.n_concepts+1, encoded_features.size(1), self.textual_encoding_size)).cuda()
-            concept_probs = torch.zeros((encoded_features.size(1), self.n_concepts, self.vocab_size)).cuda()
-            concept_idxs = torch.zeros((encoded_features.size(1), self.n_concepts), dtype=torch.long).cuda()
-            for i in range(self.n_concepts):
-                decoder_input = concept_embeddings[:i+1]
-                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i+1).cuda()
+            concept_probs = torch.zeros((encoded_features.size(1), self.svo_length, self.vocab_size)).cuda()
+            concept_idxs = torch.zeros((encoded_features.size(1), self.svo_length), dtype=torch.long).cuda()
+            concept_idxs = F.pad(concept_idxs, (1, 0, 0, 0), "constant", self.bos_index)
+
+            for i in range(1, self.svo_length):
+                if self.clamp_nearest:
+                    decoder_input = self.embed(concept_idxs[:, :i])
+                else:
+                    decoder_input = decoder_output
+
+                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i).cuda()
+                decoder_input = decoder_input.permute(1, 0, 2)
+                decoder_input = self.svo_pos_encoder(decoder_input)  # add positional encoding
                 decoder_output = self.concept_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
 
                 concept_idxs[:, i] = F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1)
-                concept_probs[:, i] = F.log_softmax(self.logit(decoder_output[-1]), dim=-1)
-                if self.clamp_nearest:
-                    # find nearest actual concept
-                    concept_embeddings[i+1] = self.embed(concept_idxs[:, i])
-                else:
-                    # pass raw decoder as input
-                    concept_embeddings[i+1] = decoder_output[-1]
-            concept_embeddings = concept_embeddings[1:].permute(1, 0 ,2)
+                concept_probs[:, i - 1] = F.log_softmax(self.logit(decoder_output[-1]), dim=-1)
+
+            concept_idxs = concept_idxs[:, 1:]
+
         #### END DECODER ####
 
-        return concept_probs, concept_idxs, concept_embeddings
+        return concept_probs, concept_idxs
 
     def forward(self, gfeats, bfeats, seq, pos):
 
         # get the svo features and vocab indexs
-        svo_out, svo_it, svo_emb = self.concept_generator(gfeats, bfeats, pos)
+        svo_out, svo_it = self.concept_generator(gfeats, bfeats, pos)
 
         if self.training:
             svo_embs = self.embed(pos)
         else:
-            if self.clamp_nearest:
-                svo_embs = self.embed(svo_it)
-            else:
-                svo_embs = svo_emb
+            svo_embs = self.embed(svo_it)
         if not self.pass_all_svo:
             svo_embs = svo_embs[:, 1:2]
 
@@ -1767,7 +1778,7 @@ class CONTRA(nn.Module):
         beam_size = opt.get('beam_size', 1)
         expand_feat = opt.get('expand_feat', 0)
 
-        svo_out, svo_it, svo_emb = self.concept_generator(feats, bfeats, expand_feat=expand_feat)
+        svo_out, svo_it = self.concept_generator(feats, bfeats, expand_feat=expand_feat)
         if beam_size > 1:
             return ((*self.sample_beam(feats, bfeats, pos, opt)), svo_out, svo_it)
         else:
@@ -1844,7 +1855,7 @@ class CONTRA(nn.Module):
         """
         beam_size = opt.get('beam_size', 5)
         fc_feats = self.feat_pool(feats, stack=True)
-        svo_out, svo_it, svo_emb = self.concept_generator(feats, bfeats, expand_feat=0)
+        svo_out, svo_it = self.concept_generator(feats, bfeats, expand_feat=0)
         batch_size = fc_feats.size(0)
 
         seq = torch.LongTensor(self.seq_length, batch_size).zero_()
@@ -1854,8 +1865,7 @@ class CONTRA(nn.Module):
         self.done_beams = [[] for _ in range(batch_size)]
         for k in range(batch_size):
             fc_feats_k = fc_feats[k].expand(beam_size, self.num_feats, self.visual_encoding_size)
-            svo_it_k = svo_it[k].expand(beam_size, 3)
-            svo_emb_k = svo_emb[k].expand(beam_size, 3, self.textual_encoding_size)
+            svo_it_k = svo_it[k].expand(beam_size, self.svo_length)
             # pos_k = pos[(k - 1) * 20].expand(beam_size, 3)
 
             beam_seq = torch.LongTensor(self.seq_length, beam_size).zero_()
@@ -1934,10 +1944,7 @@ class CONTRA(nn.Module):
                     it = Variable(beam_seq[token_idx - 1].cuda())
                     its[token_idx] = it
 
-                if self.clamp_nearest:
-                    svo_embs = self.embed(svo_it_k)
-                else:
-                    svo_embs = svo_emb_k  # todo test this
+                svo_embs = self.embed(svo_it_k)
 
                 if not self.pass_all_svo:
                     svo_embs = svo_embs[:, 1:2]

@@ -525,6 +525,7 @@ if __name__ == '__main__':
     opt.vocab = train_loader.get_vocab()
     opt.vocab_size = train_loader.get_vocab_size()
     opt.seq_length = train_loader.get_seq_length()
+    opt.svo_length = train_loader.get_svo_length()
     opt.feat_dims = train_loader.get_feat_dims()
     opt.bfeat_dims = train_loader.get_bfeat_dims()
     opt.history_file = opt.model_file.replace('.pth', '_history.json', 1)

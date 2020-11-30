@@ -76,6 +76,9 @@ class DataLoader():
 			assert(self.label_start_ix.shape[0] == self.label_end_ix.shape[0])
 			self.has_label = True
 
+			self.svo_length = self.label_h5['labels_svo'].shape[1]
+			logger.info('max svo length in data is: %d', self.svo_length)
+
 			self.label_start_ix_svo = self.label_h5['label_start_ix_svo']
 			self.label_end_ix_svo = self.label_h5['label_end_ix_svo']
 			assert(self.label_start_ix_svo.shape[0] == self.label_end_ix_svo.shape[0])
@@ -120,7 +123,7 @@ class DataLoader():
 				self.seq_length).zero_()
 			label_svo_batch = torch.LongTensor(
 				self.batch_size * self.seq_per_img,
-				3).zero_()
+				self.svo_length).zero_()
 
 		videoids_batch = []
 		gts = []
@@ -179,7 +182,7 @@ class DataLoader():
 				assert nsvo > 0, 'No svos!!'
 
 				seq_svo = torch.LongTensor(
-					self.seq_per_img, 3).zero_()
+					self.seq_per_img, self.svo_length).zero_()
 				seq_all_svo = torch.from_numpy(
 					np.array(self.label_h5['labels_svo'][ix1_svo:ix2_svo]))
 				if nsvo <= self.seq_per_img:
@@ -258,6 +261,9 @@ class DataLoader():
 
 	def get_seq_length(self):
 		return self.seq_length
+
+	def get_svo_length(self):
+		return self.svo_length
 
 	def get_seq_per_img(self):
 		return self.seq_per_img
