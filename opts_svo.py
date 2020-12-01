@@ -179,6 +179,11 @@ def parse_opts():
         type=int,
         default=1,
         help='number of heads in the filter decoder')
+    parser.add_argument(
+        '--svo_length',
+        type=int,
+        default=3,
+        help='max len of svos (normally 3 or 30)')
 
     parser.add_argument(
         '--att_size',

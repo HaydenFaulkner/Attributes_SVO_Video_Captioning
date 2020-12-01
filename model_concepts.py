@@ -867,7 +867,7 @@ class CONRNN(nn.Module):
             concept_probs = torch.zeros((encoded_features.size(1), self.svo_length, self.vocab_size)).cuda()
             concept_idxs = torch.zeros((encoded_features.size(1), self.svo_length), dtype=torch.long).cuda()
             concept_idxs = F.pad(concept_idxs, (1, 0, 0, 0), "constant", self.bos_index)
-            for i in range(1, self.svo_length):
+            for i in range(1, self.svo_length+1):
                 if self.clamp_nearest:
                     decoder_input = self.embed(concept_idxs[:, :i])
                 else:
@@ -1708,7 +1708,8 @@ class CONTRA(nn.Module):
             assert encoded_features.shape[-1] == concept_embeddings.shape[-1], print(encoded_features.shape[-1], concept_embeddings.shape[-1])
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.svo_length).cuda()
             tgt_key_padding_mask = (pos == 0)  # create padding mask
-            concept_embeddings = self.svo_pos_encoder(concept_embeddings)
+            if self.svo_pos_encoder is not None:
+                concept_embeddings = self.svo_pos_encoder(concept_embeddings)
             out = self.concept_decoder(concept_embeddings, encoded_features, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)   # out is target shp
             out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
 
@@ -1721,7 +1722,7 @@ class CONTRA(nn.Module):
             concept_idxs = torch.zeros((encoded_features.size(1), self.svo_length), dtype=torch.long).cuda()
             concept_idxs = F.pad(concept_idxs, (1, 0, 0, 0), "constant", self.bos_index)
 
-            for i in range(1, self.svo_length):
+            for i in range(1, self.svo_length+1):
                 if self.clamp_nearest:
                     decoder_input = self.embed(concept_idxs[:, :i])
                 else:
@@ -1729,7 +1730,8 @@ class CONTRA(nn.Module):
 
                 tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i).cuda()
                 decoder_input = decoder_input.permute(1, 0, 2)
-                decoder_input = self.svo_pos_encoder(decoder_input)  # add positional encoding
+                if self.svo_pos_encoder is not None:
+                    decoder_input = self.svo_pos_encoder(decoder_input)  # add positional encoding
                 decoder_output = self.concept_decoder(decoder_input, encoded_features, tgt_mask=tgt_mask)
 
                 concept_idxs[:, i] = F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1)

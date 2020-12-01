@@ -56,11 +56,13 @@ if __name__ == '__main__':
     opt.vocab = checkpoint_opt.vocab
     opt.vocab_size = checkpoint_opt.vocab_size
     opt.seq_length = checkpoint_opt.seq_length
+    # opt.svo_length = checkpoint_opt.svo_length
     opt.feat_dims = checkpoint_opt.feat_dims
     opt.bfeat_dims = checkpoint_opt.bfeat_dims
 
     assert opt.vocab_size == test_loader.get_vocab_size()
     assert opt.seq_length == test_loader.get_seq_length()
+    # assert opt.svo_length == test_loader.get_svo_length()
     assert opt.feat_dims == test_loader.get_feat_dims()
     assert opt.bfeat_dims == test_loader.get_bfeat_dims()
 
