@@ -722,7 +722,9 @@ class CONRNN(nn.Module):
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
         self.filter_encoder_layers = opt.filter_encoder_layers
+        self.filter_encoder_size = opt.filter_encoder_size
         self.filter_decoder_layers = opt.filter_decoder_layers
+        self.filter_decoder_size = opt.filter_decoder_size
         self.filter_encoder_heads = opt.filter_encoder_heads
         self.filter_decoder_heads = opt.filter_decoder_heads
         self.ct_heads = 1
@@ -731,7 +733,8 @@ class CONRNN(nn.Module):
         self.captioner_size = opt.captioner_size
         self.att_size = opt.att_size
 
-        assert self.captioner_size == self.textual_encoding_size, print(self.captioner_size, self.textual_encoding_size)
+        assert self.filter_decoder_size == self.captioner_size == self.textual_encoding_size, print(self.filter_decoder_size, self.captioner_size, self.textual_encoding_size)
+        assert self.filter_decoder_size == self.visual_encoding_size
 
         self.captioner_layers = opt.captioner_layers
         self.drop_prob_lm = opt.drop_prob_lm
@@ -771,11 +774,11 @@ class CONRNN(nn.Module):
             self.box_encoder = FeatPool(self.bfeat_dims, int(self.visual_encoding_size/2), self.drop_prob_lm, SQUEEZE=False)  # TODO replace with new box encoder
 
             concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_encoder_heads,
-                                                               dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
+                                                               dim_feedforward=self.filter_encoder_size, dropout=self.drop_prob_lm)
             self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.filter_encoder_layers)
 
-            concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.ct_heads,
-                                                               dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+            concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.filter_encoder_size, nhead=self.ct_heads,
+                                                               dim_feedforward=self.filter_decoder_size, dropout=self.drop_prob_lm)
             self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.filter_decoder_heads)
 
             self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm,
@@ -1214,8 +1217,10 @@ class SINTRA(nn.Module):
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
         self.filter_encoder_layers = opt.filter_encoder_layers
-        self.filter_encoder_heads = opt.filter_encoder_heads
+        self.filter_encoder_size = opt.filter_encoder_size
         self.filter_decoder_layers = opt.filter_decoder_layers
+        self.filter_decoder_size = opt.filter_decoder_size
+        self.filter_encoder_heads = opt.filter_encoder_heads
         self.filter_decoder_heads = opt.filter_decoder_heads
 
         self.captioner_type = opt.captioner_type
@@ -1223,7 +1228,8 @@ class SINTRA(nn.Module):
         self.captioner_layers = opt.captioner_layers
         self.captioner_heads = opt.captioner_heads
 
-        assert self.captioner_size == self.textual_encoding_size, print(self.captioner_size, self.textual_encoding_size)
+        assert self.filter_decoder_size == self.captioner_size == self.textual_encoding_size, print(self.filter_decoder_size, self.captioner_size, self.textual_encoding_size)
+        assert self.filter_decoder_size == self.visual_encoding_size
 
         self.drop_prob_lm = opt.drop_prob_lm
         self.seq_length = opt.seq_length
@@ -1257,16 +1263,16 @@ class SINTRA(nn.Module):
 
         # Concept Prediction module (visual feature encoder > k concepts decoder)
         concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_encoder_heads,
-                                                           dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
+                                                           dim_feedforward=self.filter_encoder_size, dropout=self.drop_prob_lm)
         self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.filter_encoder_layers)
         #
-        # concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_decoder_heads,
-        #                                                    dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+        # concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.filter_encoder_size, nhead=self.filter_decoder_heads,
+        #                                                    dim_feedforward=self.filter_decoder_size, dropout=self.drop_prob_lm)
         # self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.filter_decoder_layers)
 
         # Caption Prediction Module (a decoder on the global feats and k concept embeddings)
-        caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.captioner_heads,
-                                                           dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+        caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.filter_encoder_size, nhead=self.captioner_heads,
+                                                           dim_feedforward=self.captioner_size, dropout=self.drop_prob_lm)
         self.caption_decoder = nn.TransformerDecoder(caption_decoder_layer, num_layers=self.captioner_layers)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
@@ -1586,8 +1592,10 @@ class CONTRA(nn.Module):
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
         self.filter_encoder_layers = opt.filter_encoder_layers
-        self.filter_encoder_heads = opt.filter_encoder_heads
+        self.filter_encoder_size = opt.filter_encoder_size
         self.filter_decoder_layers = opt.filter_decoder_layers
+        self.filter_decoder_size = opt.filter_decoder_size
+        self.filter_encoder_heads = opt.filter_encoder_heads
         self.filter_decoder_heads = opt.filter_decoder_heads
 
         self.captioner_type = opt.captioner_type
@@ -1595,7 +1603,8 @@ class CONTRA(nn.Module):
         self.captioner_layers = opt.captioner_layers
         self.captioner_heads = opt.captioner_heads
 
-        assert self.captioner_size == self.textual_encoding_size, print(self.captioner_size, self.textual_encoding_size)
+        assert self.filter_decoder_size == self.captioner_size == self.textual_encoding_size, print(self.filter_decoder_size, self.captioner_size, self.textual_encoding_size)
+        assert self.filter_decoder_size == self.visual_encoding_size
 
         self.drop_prob_lm = opt.drop_prob_lm
         self.seq_length = opt.seq_length
@@ -1630,16 +1639,16 @@ class CONTRA(nn.Module):
 
         # Concept Prediction module (visual feature encoder > k concepts decoder)
         concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_encoder_heads,
-                                                           dim_feedforward=self.visual_encoding_size, dropout=self.drop_prob_lm)
+                                                           dim_feedforward=self.filter_encoder_size, dropout=self.drop_prob_lm)
         self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.filter_encoder_layers)
 
-        concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.filter_decoder_heads,
-                                                           dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+        concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.filter_encoder_size, nhead=self.filter_decoder_heads,
+                                                           dim_feedforward=self.filter_decoder_size, dropout=self.drop_prob_lm)
         self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.filter_decoder_layers)
 
         # Caption Prediction Module (a decoder on the global feats and k concept embeddings)
-        caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.captioner_heads,
-                                                           dim_feedforward=self.textual_encoding_size, dropout=self.drop_prob_lm)
+        caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.filter_decoder_size, nhead=self.captioner_heads,
+                                                           dim_feedforward=self.captioner_size, dropout=self.drop_prob_lm)
         self.caption_decoder = nn.TransformerDecoder(caption_decoder_layer, num_layers=self.captioner_layers)
 
         self.feat_expander = FeatExpander(self.seq_per_img)
