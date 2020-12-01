@@ -24,8 +24,10 @@ Data can be downloaded from my **Google Drive**:
 ## Test
 To test on MSVD run (~2mins):
 ```bash
-pyhton test_svo.py --model_file experiments/msvd.pth
-                   --result_file experiments/msvd_test.json
+python test_svo.py --filter_type svo_original
+                   --captioner_type lstm
+                   --model_file experiments/default/msvd.pth
+                   --result_file experiments/default/msvd_test_on_test.json
                    --test_label_h5 datasets/msvd/metadata/msvd_test_sequencelabel.h5
                    --test_cocofmt_file datasets/msvd/metadata/msvd_test_cocofmt.json
                    --test_feat_h5 datasets/msvd/features/msvd_test_resnet_mp1.h5 datasets/msvd/features/msvd_test_c3d_mp1.h5
@@ -35,8 +37,10 @@ pyhton test_svo.py --model_file experiments/msvd.pth
 
 To test on MSRTVTT run (~5mins):
 ```bash
-pyhton test_svo.py --model_file experiments/msrvtt.pth 
-                   --result_file experiments/msrvtt_test.json 
+python test_svo.py --filter_type svo_original
+                   --captioner_type lstm
+                   --model_file experiments/default/msrvtt.pth
+                   --result_file experiments/default/msrvtt_test_on_test.json
                    --test_label_h5 datasets/msrvtt/metadata/msrvtt_test_sequencelabel.h5
                    --test_cocofmt_file datasets/msrvtt/metadata/msrvtt_test_cocofmt.json
                    --test_feat_h5 datasets/msrvtt/features/msrvtt_test_irv2_mp1.h5 datasets/msrvtt/features/msrvtt_test_c3d_mp1.h5 datasets/msrvtt/features/msrvtt_test_category_mp1.h5
@@ -48,7 +52,8 @@ pyhton test_svo.py --model_file experiments/msrvtt.pth
 ## Train
 To train on MSVD run (~1hr for 100 epochs batch size 32):
 <pre>
-python train_svo.py --exp_type default
+python train_svo.py --filter_type svo_original
+                    --captioner_type lstm
                     --model_file experiments/default/msvd.pth
                     --result_file experiments/default/msvd.json
                     --train_label_h5 datasets/msvd/metadata/msvd_train_sequencelabel.h5
@@ -74,7 +79,8 @@ python train_svo.py --exp_type default
 
 To train on MSRTVTT run (~7hrs for 100 epochs batch size 32):
 <pre>
-python train_svo.py --exp_type default
+python train_svo.py --filter_type svo_original
+                    --captioner_type lstm
                     --model_file experiments/default/msrvtt.pth
                     --result_file experiments/default/msrvtt.json
                     --train_label_h5 datasets/msrvtt/metadata/msrvtt_train_sequencelabel.h5

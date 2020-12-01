@@ -12,7 +12,7 @@ from datetime import datetime
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion
-from model_concepts import CaptionModelConcepts, CaptionModelSVO
+from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA
 from train_svo import test
 
 import utils
@@ -65,10 +65,22 @@ if __name__ == '__main__':
     assert opt.bfeat_dims == test_loader.get_bfeat_dims()
 
     logger.info('Building model...')
-    if opt.exp_type in ['default']:
-        model = CaptionModelSVO(opt)
-    elif opt.exp_type in ['transformer01']:
-        model = CaptionModelConcepts(opt)
+    if opt.captioner_type in ['lstm', 'gru', 'rnn']:
+        if opt.filter_type in ['svo_original']:
+            model = SVORNN(opt)
+        elif opt.filter_type in ['svo_transformer']:
+            model = CONRNN(opt)
+        else:
+            raise NotImplementedError
+    elif opt.captioner_type in ['transformer']:
+        if opt.filter_type in ['svo_transformer']:
+            model = CONTRA(opt)
+        elif opt.filter_type in ['visual_encoder_only']:
+            model = SINTRA(opt)
+        else:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
     logger.info('Loading state from the checkpoint...')
     model.load_state_dict(checkpoint['model'])
 
