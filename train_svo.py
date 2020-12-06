@@ -225,7 +225,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
                 if opt.svo_length == 3:
                     loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
                 else:
-                    loss_svo = criterion(pred_svo[:, 1:], labels_svo[:, 1:], masks_svo[:, 1:])
+                    loss_svo = criterion(pred_svo, labels_svo, masks_svo)
 
                 if random.random() < 0.05:  # compare the svos during training
                     print('---------------------')
