@@ -109,13 +109,15 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         labels = data['labels']
         masks  = data['masks']
         labels_svo = data['labels_svo']
+        masks_svo = data['masks_svo']
 
         if torch.cuda.is_available():
             feats = [feat.cuda() for feat in feats]
             bfeats = [bfeat.cuda() for bfeat in bfeats]
             labels = labels.cuda()
             masks = masks.cuda()
-            labels_svo = labels_svo.cuda()			
+            labels_svo = labels_svo.cuda()
+            masks_svo = masks_svo.cuda()
 
         # implement scheduled sampling
         opt.ss_prob = 0
@@ -220,7 +222,11 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             if opt.filter_type in ['visual_encoder_only']:
                 loss = loss_cap
             else:
-                loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
+                if opt.svo_length == 3:
+                    loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
+                else:
+                    loss_svo = criterion(pred_svo[:, 1:], labels_svo[:, 1:], masks_svo[:, 1:])
+
                 if random.random() < 0.05:  # compare the svos during training
                     print('---------------------')
                     print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))

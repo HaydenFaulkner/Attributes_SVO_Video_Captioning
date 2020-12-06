@@ -28,7 +28,7 @@ class DataLoader():
 		self.num_boxes = opt.get('num_boxes', 10)
 		self.mode = opt.get('mode', 'train')
 		self.cocofmt_file = opt.get('cocofmt_file', None)
-		self.bcmrscores_pkl = opt.get('bcmrscores_pkl', None)
+		self.bcmrscores_pkl = opt.get('bcmrscores_pkl', None)  # created with https://github.com/mynlp/cst_captioning/blob/master/compute_scores.py
 
 		# open the hdf5 info file
 		logger.info('DataLoader loading h5 file: %s', opt['label_h5'])
@@ -122,6 +122,9 @@ class DataLoader():
 				self.batch_size * self.seq_per_img,
 				self.seq_length).zero_()
 			label_svo_batch = torch.LongTensor(
+				self.batch_size * self.seq_per_img,
+				self.svo_length).zero_()
+			mask_svo_batch = torch.FloatTensor(
 				self.batch_size * self.seq_per_img,
 				self.svo_length).zero_()
 
@@ -220,14 +223,18 @@ class DataLoader():
 
 		if self.has_label:
 			# + 1 here to count the <eos> token, because the <eos> token is set to 0
-			nonzeros = np.array(
-				list(map(lambda x: (x != 0).sum() + 1, label_batch)))
+			nonzeros = np.array(list(map(lambda x: (x != 0).sum() + 1, label_batch)))
 			for ix, row in enumerate(mask_batch):
+				row[:nonzeros[ix]] = 1
+
+			nonzeros = np.array(list(map(lambda x: (x != 0).sum() + 1, label_svo_batch)))
+			for ix, row in enumerate(mask_svo_batch):
 				row[:nonzeros[ix]] = 1
 
 			data['labels_svo'] = label_svo_batch
 			data['labels'] = label_batch
 			data['masks'] = mask_batch
+			data['masks_svo'] = mask_svo_batch
 			data['gts'] = gts
 			data['bcmrscores'] = bcmrscores
 		return data
