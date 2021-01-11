@@ -19,7 +19,7 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA
+from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA, CONTRAB
 
 import utils
 import opts_svo as opts
@@ -100,6 +100,32 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         opt.use_cst_after = infos['epoch']
         train_loader.set_current_epoch(infos['epoch'])
 
+    if opt.filter_type in ['svo_transformer_2']:
+        # get class weights
+        one_hot_sums = None
+        totes = 0
+        cur_index = train_loader.get_current_index()
+        train_loader.reset()
+        ep = infos['epoch']
+        while True:
+            data = train_loader.get_batch()
+            labels_svo = data['labels_svo']
+            one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(labels_svo, num_classes=model.vocab_size), axis=1), 0, 1)
+            one_hot[:, 0] = 0  # make the padding index 0
+            totes += one_hot.shape[0]
+            if one_hot_sums is None:
+                one_hot_sums = torch.sum(one_hot, axis=0)
+            else:
+                one_hot_sums += torch.sum(one_hot, axis=0)
+
+            if ep < train_loader.get_current_epoch():
+                one_hot_negs = -one_hot_sums+totes
+                pos_weight = one_hot_negs.type(torch.FloatTensor)/(1+one_hot_sums.type(torch.FloatTensor))
+                pos_weight = pos_weight.cuda()
+
+                train_loader.set_current_index(index=cur_index)
+                break
+
     while True:
         t_start = time.time()
         model.train()
@@ -107,7 +133,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         feats = data['feats']
         bfeats = data['bfeats']
         labels = data['labels']
-        masks  = data['masks']
+        masks = data['masks']
         labels_svo = data['labels_svo']
         masks_svo = data['masks_svo']
 
@@ -217,12 +243,19 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             loss = loss + (opt.labda/10.0)*loss_svo
 
         else:
-            pred, _, _, pred_svo, svo_it, svo_gath = model(feats, bfeats, labels, labels_svo)
+            if opt.filter_type in ['svo_transformer_2']:
+                pred, _, _, pred_svo, one_hot = model(feats, bfeats, labels, labels_svo)
+            else:
+                pred, _, _, pred_svo, svo_it, svo_gath = model(feats, bfeats, labels, labels_svo)
             loss_cap = criterion(pred, labels[:, 1:], masks[:, 1:], bcmrscores=torch.from_numpy(data['bcmrscores'].astype(np.float32)).cuda())
             if opt.filter_type in ['visual_encoder_only']:
                 loss = loss_cap
             else:
-                if opt.svo_length == 3:
+                if opt.filter_type in ['svo_transformer_2']:
+                    # svo_criterion = torch.nn.BCELoss()
+                    svo_criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+                    loss_svo = svo_criterion(pred_svo, one_hot.type(torch.FloatTensor).cuda())
+                elif opt.svo_length == 3:
                     loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
                 else:
                     loss_svo = criterion(pred_svo, labels_svo, masks_svo)
@@ -231,10 +264,11 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
                     print('---------------------')
                     print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))
                     print(utils.decode_sequence(opt.vocab, labels_svo)[:5])
-                    print(utils.decode_sequence(opt.vocab, svo_it)[:5])
+                    if opt.filter_type in ['svo_transformer_2']:
+                        print(utils.decode_sequence_new_svo(opt.vocab, pred_svo)[:5])
+                    else:
+                        print(utils.decode_sequence(opt.vocab, svo_it)[:5])
                 loss = loss_cap + (opt.labda/10.0)*loss_svo
-
-            
 
         loss.backward()
         clip_grad_norm_(model.parameters(), opt.grad_clip)
@@ -300,6 +334,22 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
                     results['scores'],
                     indent=4,
                     sort_keys=True))
+            # infos.update(results['scores'])
+
+            # todo added training set eval to check for overfitting
+            cur_index = train_loader.get_current_index()
+            train_loader.reset()
+            results_train = validate(model, criterion, train_loader, opt, max_iters=20)
+            train_loader.set_current_index(index=cur_index)
+            for k, v in results_train['scores'].items():
+                results['scores']['Train_'+k] = v
+
+            logger.info(
+                'Training output: %s',
+                json.dumps(
+                    results_train['scores'],
+                    indent=4,
+                    sort_keys=True))
             infos.update(results['scores'])
 
             check_model(model, opt, infos, infos_history)
@@ -313,13 +363,16 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
     return infos
 
 
-def validate(model, criterion, loader, opt):
+def validate(model, criterion, loader, opt, max_iters=None):
     model.eval()
     loader.reset()
 
     num_videos = loader.get_num_videos()
     batch_size = loader.get_batch_size()
-    num_iters = int(math.ceil(num_videos * 1.0 / batch_size))
+    if max_iters is None:
+        num_iters = int(math.ceil(num_videos * 1.0 / batch_size))
+    else:
+        num_iters = max_iters
     last_batch_size = num_videos % batch_size
     seq_per_img = loader.get_seq_per_img()
     model.set_seq_per_img(seq_per_img)
@@ -359,7 +412,10 @@ def validate(model, criterion, loader, opt):
                 labels_svo = labels_svo.cuda()
 
         if loader.has_label:
-            pred, gt_seq, gt_logseq, _, _, _ = model(feats, bfeats, labels, labels_svo)
+            if opt.filter_type in ['svo_transformer_2']:
+                pred, gt_seq, gt_logseq, _, _ = model(feats, bfeats, labels, labels_svo)
+            else:
+                pred, gt_seq, gt_logseq, _, _, _ = model(feats, bfeats, labels, labels_svo)
             # memReport()
             if opt.output_logp == 1:
                 gt_avglogp = utils.compute_avglogp(gt_seq, gt_logseq.data)
@@ -377,7 +433,11 @@ def validate(model, criterion, loader, opt):
             test_avglogps.extend(test_avglogp)
 
         if seq_svo is not None:
-            sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
+
+            if opt.filter_type in ['svo_transformer_2']:
+                sents_svo = utils.decode_sequence_new_svo(opt.vocab, seq_svo)
+            else:
+                sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
 
             for jj, (sent, sent_svo) in enumerate(zip(sents, sents_svo)):
                 if opt.output_logp == 1:
@@ -547,6 +607,8 @@ if __name__ == '__main__':
     elif opt.captioner_type in ['transformer']:
         if opt.filter_type in ['svo_transformer']:
             model = CONTRA(opt)
+        elif opt.filter_type in ['svo_transformer_2']:
+            model = CONTRAB(opt)
         elif opt.filter_type in ['visual_encoder_only']:
             model = SINTRA(opt)
         else:

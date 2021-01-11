@@ -2,6 +2,7 @@ import sys
 import os
 import json
 
+import torch
 import numpy as np
 from collections import OrderedDict
 
@@ -93,6 +94,21 @@ def decode_sequence(ix_to_word, seq):
                 break
         out.append(txt)
     #set_trace()
+    return out
+
+def decode_sequence_new_svo(ix_to_word, confs):
+    inds = confs > 0.5
+    out = list()
+    if len(inds.shape) < 2:
+        inds = torch.unsqueeze(inds, 0)
+    for bi in range(inds.shape[0]):
+        b_out = list()
+        for vi in range(inds.shape[1]):
+            if inds[bi, vi]:
+                b_out.append(ix_to_word[vi].decode("utf-8"))
+            if len(b_out) > 10:
+                break
+        out.append(sorted(b_out))
     return out
 
 # Input: seq, N*D numpy array, with element 0 .. vocab_size. 0 is END token.
