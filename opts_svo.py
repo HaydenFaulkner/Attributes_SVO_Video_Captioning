@@ -146,6 +146,7 @@ def parse_opts():
         choices=[
             'svo_original',
             'svo_transformer',
+            'svo_transformer_2',
             'concept_transformer',
             'visual_encoder_only'],
         help='type of the filtering prior to captioning')
