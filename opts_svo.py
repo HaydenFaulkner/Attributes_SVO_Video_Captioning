@@ -145,6 +145,7 @@ def parse_opts():
         default='svo_original',
         choices=[
             'svo_original',
+            'none',
             'svo_transformer',
             'svo_transformer_2',
             'concept_transformer',

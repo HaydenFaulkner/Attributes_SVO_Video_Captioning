@@ -19,7 +19,7 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA, CONTRAB
+from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA, CONTRAB, RNN
 
 import utils
 import opts_svo as opts
@@ -248,7 +248,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             else:
                 pred, _, _, pred_svo, svo_it, svo_gath = model(feats, bfeats, labels, labels_svo)
             loss_cap = criterion(pred, labels[:, 1:], masks[:, 1:], bcmrscores=torch.from_numpy(data['bcmrscores'].astype(np.float32)).cuda())
-            if opt.filter_type in ['visual_encoder_only']:
+            if opt.filter_type in ['None', 'none', 'visual_encoder_only']:
                 loss = loss_cap
             else:
                 if opt.filter_type in ['svo_transformer_2']:
@@ -279,7 +279,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
 
         infos['TrainLoss'] = loss.item()
         infos['CAPTrainLoss'] = loss_cap.item()
-        if opt.filter_type not in ['visual_encoder_only']:
+        if opt.filter_type not in ['None', 'none', 'visual_encoder_only']:
             infos['SVOTrainLoss'] = loss_svo.item()
         else:
             infos['SVOTrainLoss'] = 0
@@ -323,6 +323,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             logger.info('===> Learning rate: %f: ', learning_rate)
 
         # checkpoint_checked = False
+        # if 1:   todo debuging, jump straight to validation
         if (infos['epoch'] >= opt.save_checkpoint_from and
                 infos['epoch'] % opt.save_checkpoint_every == 0 and
                 not checkpoint_checked):
@@ -598,7 +599,9 @@ if __name__ == '__main__':
 
     logger.info('Building model...')
     if opt.captioner_type in ['lstm', 'gru', 'rnn']:
-        if opt.filter_type in ['svo_original']:
+        if opt.filter_type in ['none', 'None']:
+            model = RNN(opt)
+        elif opt.filter_type in ['svo_original']:
             model = SVORNN(opt)
         elif opt.filter_type in ['svo_transformer']:
             model = CONRNN(opt)
