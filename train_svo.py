@@ -453,7 +453,7 @@ def validate(model, criterion, loader, opt, max_iters=None):
                 if opt.output_logp == 1:
                     entry = {'image_id': data['ids'][jj], 'caption': sent, 'avglogp': test_avglogp[jj], 'box_att': model.attention_record[jj].tolist()}
                 else:
-                    entry = {'image_id': data['ids'][jj], 'caption': sent}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
+                    entry = {'image_id': data['ids'][jj], 'caption': sent}
                 predictions.append(entry)
                 logger.debug('[%d] video %s: %s' % (jj, entry['image_id'], entry['caption']))
 

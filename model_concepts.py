@@ -709,7 +709,7 @@ class SVORNN(nn.Module):
 
 class RNN(nn.Module):
     """
-    A concepts captioning model
+    Attention over the 12 features, RNN cap gen attends every iteration
     """
 
     def __init__(self, opt):
@@ -733,9 +733,6 @@ class RNN(nn.Module):
         self.captioner_size = opt.captioner_size
         self.att_size = opt.att_size
 
-        assert self.filter_decoder_size == self.captioner_size == self.textual_encoding_size, print(self.filter_decoder_size, self.captioner_size, self.textual_encoding_size)
-        assert self.filter_decoder_size == self.visual_encoding_size
-
         self.captioner_layers = opt.captioner_layers
         self.drop_prob_lm = opt.drop_prob_lm
         self.seq_length = opt.seq_length
@@ -757,8 +754,10 @@ class RNN(nn.Module):
         self.h2a_layer = nn.Linear(self.captioner_size, self.att_size)
         self.att_layer = nn.Linear(self.att_size, 1)
 
-        self.f_encoder = nn.Sequential(nn.Linear(1536, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
-        self.m_encoder = nn.Sequential(nn.Linear(2048, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
+        self.feat_enc = list()
+        for in_dim in self.feat_dims:
+            self.feat_enc.append(nn.Sequential(nn.Linear(in_dim, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm)))
+        self.feat_enc = nn.ModuleList(self.feat_enc)
         self.rf_encoder = nn.Sequential(nn.Linear(1024, self.visual_encoding_size-4), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
         self.rb_encoder = nn.Sequential(nn.Linear(4, 4), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
 
@@ -804,12 +803,13 @@ class RNN(nn.Module):
             return Variable(weight.new(self.captioner_layers, batch_size, self.captioner_size).zero_())
 
     def forward(self, feats, bfeats, seq, pos):
-        f_enc = self.f_encoder(feats[0])
-        m_enc = self.m_encoder(feats[1])
+        feats_enc = list()
+        for i, feat in enumerate(feats):
+            feats_enc.append(self.feat_enc[i](feat))
         rf_enc = self.rf_encoder(bfeats[0])
         rb_enc = self.rb_encoder(bfeats[1])
         r_enc = torch.cat((rf_enc, rb_enc), dim=-1)
-        combined_enc = torch.cat((f_enc, m_enc, r_enc), dim=1)
+        combined_enc = torch.cat(feats_enc + [r_enc], dim=1)
 
         fc_feats = self.feat_expander(combined_enc)
 
@@ -904,12 +904,15 @@ class RNN(nn.Module):
         modified from https://github.com/ruotianluo/self-critical.pytorch
         """
         beam_size = opt.get('beam_size', 5)
-        f_enc = self.f_encoder(feats[0])
-        m_enc = self.m_encoder(feats[1])
+        feats_enc = list()
+        for i, feat in enumerate(feats):
+            feats_enc.append(self.feat_enc[i](feat))
         rf_enc = self.rf_encoder(bfeats[0])
         rb_enc = self.rb_encoder(bfeats[1])
         r_enc = torch.cat((rf_enc, rb_enc), dim=-1)
-        fc_feats = torch.cat((f_enc, m_enc, r_enc), dim=1)
+        combined_enc = torch.cat(feats_enc + [r_enc], dim=1)
+
+        fc_feats = combined_enc
 
         batch_size = fc_feats.size(0)
 
