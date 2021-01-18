@@ -19,7 +19,7 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA, CONTRAB, RNN
+from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA, CONTRAB, RNN, TRAD
 
 import utils
 import opts_svo as opts
@@ -608,7 +608,9 @@ if __name__ == '__main__':
         else:
             raise NotImplementedError
     elif opt.captioner_type in ['transformer']:
-        if opt.filter_type in ['svo_transformer']:
+        if opt.filter_type in ['none', 'None']:
+            model = TRAD(opt)
+        elif opt.filter_type in ['svo_transformer']:
             model = CONTRA(opt)
         elif opt.filter_type in ['svo_transformer_2']:
             model = CONTRAB(opt)
