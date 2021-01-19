@@ -126,9 +126,9 @@ for dataset in ['msvd', 'msrvtt']:
         print('# nouns: %d (%d%%)' % (sum(num_nouns), int(100*float(sum(num_nouns))/sum(num_words))))
         print('# verbs: %d (%d%%)' % (sum(num_verbs), int(100*float(sum(num_verbs))/sum(num_words))))
 
-        print('# unique words (uncleaned): %d' % sum(num_unique_words))
-        print('# unique nouns: %d (%d%%)' % (sum(num_unique_nouns), int(100*float(sum(num_unique_nouns))/sum(num_unique_words))))
-        print('# unique verbs: %d (%d%%)' % (sum(num_unique_verbs), int(100*float(sum(num_unique_verbs))/sum(num_unique_words))))
+        print('# unique words (uncleaned): %d' % len(word_count))
+        print('# unique nouns: %d (%d%%)' % (len(nouns_count), int(100*float(len(nouns_count))/len(word_count))))
+        print('# unique verbs: %d (%d%%)' % (len(verbs_count), int(100*float(len(verbs_count))/len(word_count))))
 
         print()
         print('Nouns per Video (min | avg | max): %d | %d | %d' % (min(num_nouns), int(float(sum(num_nouns))/len(num_nouns)), max(num_nouns)))
