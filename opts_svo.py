@@ -144,28 +144,29 @@ def parse_opts():
         type=str,
         default='svo_original',
         choices=[
-            'svo_original',
             'none',
+            'tran_enc'
+            'svo_original',
             'svo_transformer',
             'svo_transformer_2',
             'concept_transformer',
             'visual_encoder_only'],
         help='type of the filtering prior to captioning')
     parser.add_argument(
-        '--filter_encoder_size',
+        '--input_encoder_size',
         type=int,
         default=512,
-        help='size of the filter in number of hidden nodes in each encoder layer')
+        help='size of the input in number of hidden nodes in each encoder layer')
     parser.add_argument(
-        '--filter_encoder_layers',
+        '--input_encoder_layers',
+        type=int,
+        default=-1,
+        help='number of layers in the input encoder')
+    parser.add_argument(
+        '--input_encoder_heads',
         type=int,
         default=1,
-        help='number of layers in the filter encoder')
-    parser.add_argument(
-        '--filter_encoder_heads',
-        type=int,
-        default=1,
-        help='number of heads in the filter encoder')
+        help='number of heads in the input encoder')
     parser.add_argument(
         '--filter_decoder_size',
         type=int,

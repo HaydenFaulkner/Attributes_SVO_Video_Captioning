@@ -707,13 +707,13 @@ class SVORNN(nn.Module):
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
-class RNN(nn.Module):
+class RNN_DEC(nn.Module):
     """
     Attention over the 12 features, RNN cap gen attends every iteration
     """
 
     def __init__(self, opt):
-        super(RNN, self).__init__()
+        super(RNN_DEC, self).__init__()
         self.vocab_size = opt.vocab_size
         self.bfeat_dims = opt.bfeat_dims
         self.feat_dims = opt.feat_dims
@@ -722,6 +722,10 @@ class RNN(nn.Module):
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
         self.ct_heads = 1
+
+        self.input_encoder_layers = opt.input_encoder_layers
+        self.input_encoder_heads = opt.input_encoder_heads
+        self.input_encoder_size = opt.input_encoder_size
 
         self.captioner_type = opt.captioner_type
         self.captioner_size = opt.captioner_size
@@ -753,6 +757,15 @@ class RNN(nn.Module):
         self.feat_enc = nn.ModuleList(self.feat_enc)
         self.rf_encoder = nn.Sequential(nn.Linear(1024, self.visual_encoding_size-4), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
         self.rb_encoder = nn.Sequential(nn.Linear(4, 4), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
+
+        # Transformer Encoder
+        self.concept_encoder = None
+        if self.input_encoder_layers > 0:
+            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size,
+                                                               nhead=self.input_encoder_heads,
+                                                               dim_feedforward=self.input_encoder_size,
+                                                               dropout=self.drop_prob_lm)
+            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.input_encoder_layers)
 
         self.init_weights()
 
@@ -803,6 +816,11 @@ class RNN(nn.Module):
         rb_enc = self.rb_encoder(bfeats[1])
         r_enc = torch.cat((rf_enc, rb_enc), dim=-1)
         combined_enc = torch.cat(feats_enc + [r_enc], dim=1)
+
+        #### ENCODER ####
+        if self.concept_encoder is not None:
+            combined_enc = self.concept_encoder(combined_enc.permute(1, 0, 2)).permute(1, 0, 2)
+        #### END ENCODER ####
 
         fc_feats = self.feat_expander(combined_enc)
 
@@ -909,6 +927,11 @@ class RNN(nn.Module):
         rb_enc = self.rb_encoder(bfeats[1])
         r_enc = torch.cat((rf_enc, rb_enc), dim=-1)
         combined_enc = torch.cat(feats_enc + [r_enc], dim=1)
+
+        #### ENCODER ####
+        if self.concept_encoder is not None:
+            combined_enc = self.concept_encoder(combined_enc.permute(1, 0, 2)).permute(1, 0, 2)
+        #### END ENCODER ####
 
         fc_feats = combined_enc
 
@@ -1044,13 +1067,13 @@ class RNN(nn.Module):
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
-class TRAD(nn.Module):
+class TRF_DEC(nn.Module):
     """
-    Just a transformer decoder
+    Just a transformer decoder, with optional input encoder
     """
 
     def __init__(self, opt):
-        super(TRAD, self).__init__()
+        super(TRF_DEC, self).__init__()
         self.vocab_size = opt.vocab_size
         self.bfeat_dims = opt.bfeat_dims
         self.feat_dims = opt.feat_dims
@@ -1058,6 +1081,10 @@ class TRAD(nn.Module):
 
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
+
+        self.input_encoder_layers = opt.input_encoder_layers
+        self.input_encoder_heads = opt.input_encoder_heads
+        self.input_encoder_size = opt.input_encoder_size
 
         self.captioner_type = opt.captioner_type
         self.captioner_size = opt.captioner_size
@@ -1084,6 +1111,15 @@ class TRAD(nn.Module):
         self.feat_enc = nn.ModuleList(self.feat_enc)
         self.rf_encoder = nn.Sequential(nn.Linear(1024, self.visual_encoding_size-4), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
         self.rb_encoder = nn.Sequential(nn.Linear(4, 4), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
+
+        # Transformer Encoder
+        self.concept_encoder = None
+        if self.input_encoder_layers > 0:
+            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size,
+                                                               nhead=self.input_encoder_heads,
+                                                               dim_feedforward=self.input_encoder_size,
+                                                               dropout=self.drop_prob_lm)
+            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.input_encoder_layers)
 
         # Transformer Decoder
         # encode word positions
@@ -1131,7 +1167,12 @@ class TRAD(nn.Module):
         r_enc = torch.cat((rf_enc, rb_enc), dim=-1)
         combined_enc = torch.cat(feats_enc + [r_enc], dim=1)
 
-        encoded_features = self.feat_expander(combined_enc).permute(1, 0, 2)  # change to (time, batch, channel)
+        #### ENCODER ####
+        if self.concept_encoder is not None:
+            combined_enc = self.concept_encoder(combined_enc.permute(1, 0, 2)).permute(1, 0, 2)
+        #### END ENCODER ####
+
+        encoded_features = self.feat_expander(combined_enc).permute(1, 0, 2)
 
         caption_embeddings = self.embed(seq)  # emb indexs -> embeddings
         caption_embeddings = caption_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
@@ -1178,6 +1219,11 @@ class TRAD(nn.Module):
         rb_enc = self.rb_encoder(bfeats[1])
         r_enc = torch.cat((rf_enc, rb_enc), dim=-1)
         combined_enc = torch.cat(feats_enc + [r_enc], dim=1)
+
+        #### ENCODER ####
+        if self.concept_encoder is not None:
+            combined_enc = self.concept_encoder(combined_enc.permute(1, 0, 2)).permute(1, 0, 2)
+        #### END ENCODER ####
 
         encoded_features = combined_enc
 
