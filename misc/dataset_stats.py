@@ -145,3 +145,11 @@ for dataset in ['msvd', 'msrvtt']:
         print('Unique Verbs per Caption (min | avg | max): %d | %d | %d' % (min(num_unique_verbs_per_cap), int(float(sum(num_unique_verbs_per_cap)) / len(num_unique_verbs_per_cap)), max(num_unique_verbs_per_cap)))
 
         print()
+
+        print('Most Common Nouns')
+        for w, c in sorted(nouns_count.items(), key=lambda item: item[1], reverse=True)[:101]:
+            print('%s\t%d' % (w, c))
+
+        print('Most Common Verbs')
+        for w, c in sorted(verbs_count.items(), key=lambda item: item[1], reverse=True)[:101]:
+            print('%s\t%d' % (w,c))
