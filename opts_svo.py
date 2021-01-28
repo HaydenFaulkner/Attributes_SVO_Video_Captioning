@@ -151,7 +151,8 @@ def parse_opts():
         default='svo_original',
         choices=[
             'none',
-            'tran_enc'
+            'niuc',
+            'tran_enc',
             'svo_original',
             'svo_transformer',
             'svo_transformer_2',
@@ -174,20 +175,20 @@ def parse_opts():
         default=1,
         help='number of heads in the input encoder')
     parser.add_argument(
-        '--filter_decoder_size',
+        '--grounder_size',
         type=int,
         default=512,
-        help='size of the filter in number of hidden nodes in each decoder layer')
+        help='size of the grounder in number of hidden nodes in each grounder layer')
     parser.add_argument(
-        '--filter_decoder_layers',
+        '--grounder_layers',
         type=int,
         default=1,
-        help='number of layers in the filter decoder')
+        help='number of layers in the grounder')
     parser.add_argument(
-        '--filter_decoder_heads',
+        '--grounder_heads',
         type=int,
         default=1,
-        help='number of heads in the filter decoder')
+        help='number of heads in the grounder decoder')
     parser.add_argument(
         '--svo_length',
         type=int,
