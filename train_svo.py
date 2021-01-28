@@ -434,7 +434,9 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
 
         if seq_svo is not None:
 
-            if opt.filter_type in ['svo_transformer_2', 'niuc']:
+            if opt.filter_type in ['niuc']:
+                sents_svo = utils.decode_concepts_sequence(opt.vocab, seq_svo)
+            elif opt.filter_type in ['svo_transformer_2']:
                 sents_svo = utils.decode_sequence_new_svo(opt.vocab, seq_svo)
             else:
                 sents_svo = utils.decode_sequence(opt.vocab, seq_svo)

@@ -1315,17 +1315,6 @@ class TRF_DEC(nn.Module):
         beam_size = opt.get('beam_size', 1)
         expand_feat = opt.get('expand_feat', 0)
 
-        if beam_size > 1:
-            return ((*self.sample_beam(feats, bfeats, pos, opt)), None, None)
-        else:
-            return NotImplementedError
-
-    def sample_beam(self, feats, bfeats, pos, opt={}):
-        """
-        modified from https://github.com/ruotianluo/self-critical.pytorch
-        """
-        beam_size = opt.get('beam_size', 5)
-
         feats_enc = list()
         for i, feat in enumerate(feats):
             feats_enc.append(self.feat_enc[i](feat))
@@ -1341,12 +1330,22 @@ class TRF_DEC(nn.Module):
 
         #### GROUNDER ####
         concept_probs = None
+        feats_ = None
         if self.filter_type in ['niuc']:
-            feats_, concept_probs, top_emb, mask = self.non_iterative_grounder(combined_enc)
+            feats_, concept_probs, top_emb, mask = self.non_iterative_grounder(combined_enc, expand_feat=expand_feat)
             combined_enc = torch.cat((combined_enc, feats_, top_emb), dim=1)  # todo use _feats, but maybe dont need to
         #### END GROUNDER ####
 
-        encoded_features = combined_enc
+        if beam_size > 1:
+            return ((*self.sample_beam(combined_enc, opt)), feats_, concept_probs)
+        else:
+            return NotImplementedError
+
+    def sample_beam(self, encoded_features, opt={}):
+        """
+        modified from https://github.com/ruotianluo/self-critical.pytorch
+        """
+        beam_size = opt.get('beam_size', 5)
 
         batch_size = encoded_features.size(0)
 

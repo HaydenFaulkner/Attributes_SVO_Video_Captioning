@@ -3,6 +3,7 @@ import os
 import json
 
 import torch
+import torch.nn.functional as F
 import numpy as np
 from collections import OrderedDict
 
@@ -109,6 +110,22 @@ def decode_sequence_new_svo(ix_to_word, confs):
             if len(b_out) > 10:
                 break
         out.append(sorted(b_out))
+    return out
+
+def decode_concepts_sequence(ix_to_word, confs):
+    concept_probs = F.sigmoid(confs)
+    top_v, top_i = torch.topk(concept_probs, k=5)
+    # inds = confs > 0.5
+    out = list()
+    if len(top_i.shape) < 2:
+        top_i = torch.unsqueeze(top_i, 0)
+        top_v = torch.unsqueeze(top_v, 0)
+    for bi in range(top_i.shape[0]):
+        b_out = list()
+        for vi in range(top_i.shape[1]):
+            b_out.append(ix_to_word[int(top_i[bi, vi])].decode("utf-8") + "  %.4f" % float(top_v[bi, vi]))
+
+        out.append(b_out)
     return out
 
 # Input: seq, N*D numpy array, with element 0 .. vocab_size. 0 is END token.
