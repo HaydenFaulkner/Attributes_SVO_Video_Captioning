@@ -61,6 +61,6 @@ if __name__ == '__main__':
         vocab_verbs = vocab_verbs - manual_nouns
 
         with open(os.path.join('datasets', dset, 'metadata', dset+'_nouns_vocab.pkl'), 'wb') as f:
-            pkl.dump(vocab_nouns, f)
+            pkl.dump(sorted(list(vocab_nouns)), f)
         with open(os.path.join('datasets', dset, 'metadata', dset+'_verbs_vocab.pkl'), 'wb') as f:
-            pkl.dump(vocab_verbs, f)
+            pkl.dump(sorted(list(vocab_verbs)), f)
