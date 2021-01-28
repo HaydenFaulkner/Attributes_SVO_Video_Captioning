@@ -76,6 +76,12 @@ def parse_opts():
         type=str,
         help='Path to idx document frequencies to cal Cider on training data')
 
+    parser.add_argument(
+        '--input_features',
+        default='imrc',
+        type=str,
+        help='i image, m motion, r region, c classification')
+
     # Optimization: General
     parser.add_argument(
         '--max_patience',

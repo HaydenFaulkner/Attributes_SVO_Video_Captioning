@@ -717,7 +717,8 @@ class RNN_DEC(nn.Module):
         self.vocab_size = opt.vocab_size
         self.bfeat_dims = opt.bfeat_dims
         self.feat_dims = opt.feat_dims
-        self.num_feats = len(self.feat_dims)
+        self.num_feats = len(self.feat_dims)  # only used for manet
+        self.input_feats = opt.input_features
 
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
@@ -816,6 +817,17 @@ class RNN_DEC(nn.Module):
         rb_enc = self.rb_encoder(bfeats[1])
         r_enc = torch.cat((rf_enc, rb_enc), dim=-1)
         combined_enc = torch.cat(feats_enc + [r_enc], dim=1)
+
+        feats_pass = []
+        if 'i' in self.input_feats:
+            feats_pass.append(combined_enc[:,0:1,:])
+        if 'm' in self.input_feats:
+            feats_pass.append(combined_enc[:,1:2,:])
+        if 'r' in self.input_feats:
+            feats_pass.append(combined_enc[:,-10:,:])
+        if 'c' in self.input_feats and combined_enc.shape[1] == 13:
+            feats_pass.append(combined_enc[:,2:3,:])
+        combined_enc = torch.cat(feats_pass, dim=1)
 
         #### ENCODER ####
         if self.concept_encoder is not None:

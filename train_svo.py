@@ -340,7 +340,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             # todo added training set eval to check for overfitting
             cur_index = train_loader.get_current_index()
             train_loader.reset()
-            results_train = validate(model, criterion, train_loader, opt, max_iters=20)
+            results_train = validate(model, criterion, train_loader, opt, max_iters=20, type='train')
             train_loader.set_current_index(index=cur_index)
             for k, v in results_train['scores'].items():
                 results['scores']['Train_'+k] = v
@@ -364,7 +364,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
     return infos
 
 
-def validate(model, criterion, loader, opt, max_iters=None):
+def validate(model, criterion, loader, opt, max_iters=None, type='val'):
     model.eval()
     loader.reset()
 
@@ -466,10 +466,10 @@ def validate(model, criterion, loader, opt, max_iters=None):
 
     if opt.language_eval == 1 and loader.has_label:
         logger.info('>>> Language evaluating ...')
-        tmp_checkpoint_json = os.path.join(opt.model_file + str(uuid.uuid4()) + '.json')
+        tmp_checkpoint_json = os.path.join(opt.model_file.split('.')[0] + '_' + type + '.json')
         json.dump(predictions, open(tmp_checkpoint_json, 'w'))
         lang_stats = utils.language_eval(loader.cocofmt_file, tmp_checkpoint_json)
-        os.remove(tmp_checkpoint_json)
+        # os.remove(tmp_checkpoint_json)
 
     results['predictions'] = predictions
     results['scores'] = {'Loss': -loss}
@@ -492,7 +492,7 @@ def validate(model, criterion, loader, opt, max_iters=None):
 
 
 def test(model, criterion, loader, opt):
-    results = validate(model, criterion, loader, opt)
+    results = validate(model, criterion, loader, opt, type='test')
     logger.info('Test output: %s', json.dumps(results['scores'], indent=4))
 
     json.dump(results, open(opt.result_file, 'w'))
