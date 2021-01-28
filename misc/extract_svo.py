@@ -190,15 +190,20 @@ def get_svo(sentence, subject):
     return {}
 
 
-def make_h5(json_file):
+def make_h5(json_file, length=30, vocab=None):
     json_data = json.load(open(json_file, 'r'))
-    h5_file = json_file.replace('proprocessedtokens', 'sequencelabel').replace('.json', '.h5')
+    if 'proprocessedtokens' in json_file:
+        h5_file = json_file.replace('proprocessedtokens', 'sequencelabel').replace('.json', '.h5')
+        h5_infile = h5_file.split('sequencelabel')[0] + 'sequencelabel.h5'
+    else:
+        h5_file = json_file.replace('ppt', 'sl').replace('.json', '.h5')
+        h5_infile = h5_file.split('sl')[0] + 'sequencelabel.h5'
 
-    h5_infile = h5_file.split('sequencelabel')[0] + 'sequencelabel.h5'
 
     with h5py.File(h5_infile, "r") as f:
         videos = list(f['videos'])
-        vocab = [v.decode("utf-8") for v in list(f['vocab'])]
+        if vocab is None:
+            vocab = [v.decode("utf-8") for v in list(f['vocab'])]
 
         index = 0
         vid_index = 0
@@ -208,15 +213,18 @@ def make_h5(json_file):
         video_svo = list()
         svos_vocab_inds = list()
         for video in videos:
+            svos = []
             for json_entry in json_data:
                 if json_entry['video_id'] == int(video):
                     svos = json_entry['svos']
                     break
 
+            if len(svos) == 0:
+                print()
             start_ix_svo.append(index)
             for svo in svos:
                 svo_vocab_ind = list()
-                svo_vocab_ind = np.zeros((30,), dtype=np.int64)
+                svo_vocab_ind = np.zeros((length,), dtype=np.int64)
                 for i, word in enumerate(svo.split()):
                     if word in vocab:
                         svo_vocab_ind[i] = vocab.index(word)
@@ -252,15 +260,36 @@ if __name__ == '__main__':
 
     trigram_tagger = trained_tagger()
 
-    type = 'all2'
+    type = 'concepts_per_video'
     for dataset in ['msvd', 'msrvtt']:
+        with open(os.path.join('datasets', dataset, 'metadata', dataset+'_nouns_vocab.pkl'), 'rb') as f:
+            vocab_nouns = pickle.load(f)
+        with open(os.path.join('datasets', dataset, 'metadata', dataset+'_verbs_vocab.pkl'), 'rb') as f:
+            vocab_verbs = pickle.load(f)
+
         for split in ['train', 'val', 'test']:
 
             gt_file_path = os.path.join('datasets', dataset, 'metadata')
             gt_test = dataset + '_' + split + '_proprocessedtokens.json'
             gt_json = json.load(open(os.path.join(gt_file_path, gt_test), 'r'))
 
-            if type in ['all', 'top']:
+            if type in ['concepts_per_video']:
+                gt_test_out = dataset + '_' + split + '_ppt_top_concepts.json'
+                for gt_item in gt_json:
+                    words = dict()
+                    for cap in gt_item['captions']:
+                        cap = clean_document(cap)
+                        tags = nltk.pos_tag(nltk.word_tokenize(cap))
+                        for tag, _ in tags:
+                            if tag in vocab_nouns or tag in vocab_verbs:
+                                if tag not in words:
+                                    words[tag] = 0
+                                words[tag] += 1
+                    top_words = [x[0] for x in sorted(words.items(), key=lambda item: item[1], reverse=True)[:5]]
+                    gt_item['svos'] = [' '.join(top_words)]
+
+
+            elif type in ['all', 'top']:
                 for gt_item in gt_json:
                     svos = set()
                     svos_l = list()
@@ -362,4 +391,7 @@ if __name__ == '__main__':
                     # print('----------------------------')
             json.dump(gt_json, open(os.path.join(gt_file_path, gt_test_out), 'w'))
 
-            make_h5(os.path.join(gt_file_path, gt_test_out))
+            if type in ['concepts_per_video']:
+                make_h5(os.path.join(gt_file_path, gt_test_out), length=5)#USE ORIG VOCAB FOR EASE... still only has smaller vocab items, so many more 0 cats, vocab=['<end>', '<start>', '<unk>'] + vocab_nouns + vocab_verbs)
+            else:
+                make_h5(os.path.join(gt_file_path, gt_test_out))
