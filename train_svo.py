@@ -100,7 +100,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         opt.use_cst_after = infos['epoch']
         train_loader.set_current_epoch(infos['epoch'])
 
-    if opt.filter_type in ['svo_transformer_2', 'niuc']:
+    if opt.filter_type in ['svo_transformer_2', 'niuc', 'iuc', 'ioc']:
         # get class weights
         one_hot_sums = None
         totes = 0
@@ -243,27 +243,28 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             loss = loss + (opt.labda/10.0)*loss_svo
 
         else:
-            if opt.filter_type in ['svo_transformer_2', 'niuc']:
-                pred, _, _, pred_svo, one_hot = model(feats, bfeats, labels, labels_svo)
-            else:
-                pred, _, _, pred_svo, svo_it, svo_gath = model(feats, bfeats, labels, labels_svo)
+            pred, _, _, pred_svo, svo_it, svo_gath = model(feats, bfeats, labels, labels_svo)
             loss_cap = criterion(pred, labels[:, 1:], masks[:, 1:], bcmrscores=torch.from_numpy(data['bcmrscores'].astype(np.float32)).cuda())
             if opt.filter_type in ['None', 'none', 'visual_encoder_only']:
                 loss = loss_cap
             else:
-                if opt.filter_type in ['svo_transformer_2', 'niuc']:
+                if opt.filter_type in ['svo_transformer_2', 'niuc', 'iuc']:
                     svo_criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-                    loss_svo = svo_criterion(pred_svo, one_hot.type(torch.FloatTensor).cuda())
+                    concepts_one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(labels_svo, num_classes=model.vocab_size), axis=1),  0, 1)
+                    concepts_one_hot[:, 0] = 0  # make the padding index 0
+                    loss_svo = svo_criterion(pred_svo, concepts_one_hot.type(torch.FloatTensor).cuda())
                 elif opt.svo_length == 3:
                     loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
                 else:
+                    # loss_ce = nn.CrossEntropyLoss()
+                    # output = loss_ce(pred_svo, labels_svo)
                     loss_svo = criterion(pred_svo, labels_svo, masks_svo)
 
-                if random.random() < 0.05:  # compare the svos during training
+                if random.random() < 0.01:  # compare the svos during training
                     print('---------------------')
                     print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))
                     print(utils.decode_sequence(opt.vocab, labels_svo)[0])
-                    if opt.filter_type in ['svo_transformer_2', 'niuc']:
+                    if opt.filter_type in ['svo_transformer_2', 'niuc', 'iuc', 'iou']:
                         print(utils.decode_sequence_new_svo(opt.vocab, pred_svo)[0])
                     else:
                         print(utils.decode_sequence(opt.vocab, svo_it)[:5])
@@ -413,10 +414,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
                 labels_svo = labels_svo.cuda()
 
         if loader.has_label:
-            if opt.filter_type in ['svo_transformer_2', 'niuc']:
-                pred, gt_seq, gt_logseq, _, _ = model(feats, bfeats, labels, labels_svo)
-            else:
-                pred, gt_seq, gt_logseq, _, _, _ = model(feats, bfeats, labels, labels_svo)
+            pred, gt_seq, gt_logseq, _, _, _ = model(feats, bfeats, labels, labels_svo)
             # memReport()
             if opt.output_logp == 1:
                 gt_avglogp = utils.compute_avglogp(gt_seq, gt_logseq.data)
@@ -427,7 +425,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
             del pred, gt_seq, gt_logseq
             torch.cuda.empty_cache()
 
-        seq, logseq, _, seq_svo = model.sample(feats, bfeats, labels_svo, {'beam_size': opt.beam_size})
+        seq, logseq, seq_svo = model.sample(feats, bfeats, labels_svo, {'beam_size': opt.beam_size})
         sents = utils.decode_sequence(opt.vocab, seq)
         if opt.output_logp == 1:
             test_avglogp = utils.compute_avglogp(seq, logseq)
@@ -435,7 +433,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
 
         if seq_svo is not None:
 
-            if opt.filter_type in ['niuc']:
+            if opt.filter_type in ['niuc', 'iuc', 'ioc']:
                 sents_svo = utils.decode_concepts_sequence(opt.vocab, seq_svo)
                 gt_sents_svo = utils.decode_sequence(opt.vocab, torch.reshape(labels_svo, (len(sents_svo), opt.test_seq_per_img, -1))[:, 0])
                 gt_sents_svo = [g.split(' ') for g in gt_sents_svo]
@@ -648,7 +646,7 @@ if __name__ == '__main__':
         else:
             raise NotImplementedError
     elif opt.captioner_type in ['transformer']:
-        if opt.filter_type in ['none', 'None', 'niuc']:
+        if opt.filter_type in ['none', 'None', 'niuc', 'iuc', 'ioc']:
             model = TRF_DEC(opt)
         elif opt.filter_type in ['svo_transformer']:
             model = CONTRA(opt)

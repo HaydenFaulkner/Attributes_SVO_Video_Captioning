@@ -152,6 +152,8 @@ def parse_opts():
         choices=[
             'none',
             'niuc',
+            'iuc',
+            'ioc',
             'tran_enc',
             'svo_original',
             'svo_transformer',
@@ -199,7 +201,7 @@ def parse_opts():
         '--svo_length',
         type=int,
         default=3,
-        help='max len of svos (normally 3 or 30)')
+        help='max len of svos (normally 3, 5 or 30)')
 
     parser.add_argument(
         '--att_size',

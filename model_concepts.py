@@ -1092,6 +1092,7 @@ class TRF_DEC(nn.Module):
         self.num_feats = len(self.feat_dims)
         self.filter_type = opt.filter_type
         self.gt_concepts_while_training = opt.gt_concepts_while_training
+        self.svo_length = opt.svo_length
 
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
@@ -1160,6 +1161,8 @@ class TRF_DEC(nn.Module):
                 self.feed_forward.append(nn.Linear(self.grounder_size, self.textual_encoding_size))
                 self.feed_forward.append(nn.ReLU())
                 self.feed_forward.append(nn.Dropout(self.drop_prob_lm))
+        elif self.filter_type in ['iuc', 'ioc']:
+            self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.svo_length+1)
             # iterative
             concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.grounder_heads,
                                                                dim_feedforward=self.grounder_size, dropout=self.drop_prob_lm)
@@ -1200,7 +1203,7 @@ class TRF_DEC(nn.Module):
         self.logit.bias.data.fill_(0)
         self.logit.weight.data.uniform_(-initrange, initrange)
 
-    def non_iterative_grounder(self, feats, expand_feat=1):
+    def non_iterative_grounder(self, feats):
         # embed the features for grounding attention
         q_feats = self.feat_pool_q(feats[:, 0:1]) # use img feat as query
         k_feats = self.feat_pool_k(feats)
@@ -1228,39 +1231,61 @@ class TRF_DEC(nn.Module):
         mask = top_v > .5  # mask threshold
         top_emb = self.embed(top_i)
 
-        if expand_feat:  # expand to seq_per_img length
-            scores = self.feat_expander(scores)
+        return scores, top_emb
 
-        return feats_, scores, top_emb, mask
+    def iterative_grounder(self, feats, concepts_gt):
 
-    def iterative_grounder(self, feats, concepts_gt, expand_feat=1):
-        concept_embeddings = self.embed(concepts_gt)  # emb indexs -> embeddings
-        concept_embeddings = concept_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
-        concept_embeddings = self.pos_encoder(concept_embeddings)  # add positional encoding
-        tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, concepts_gt.size(-1)).cuda()  # create sequence mask
-        tgt_key_padding_mask = (concepts_gt == 0)  # create padding mask
+        if self.training and concepts_gt is not None:
+            concepts_gt = torch.reshape(concepts_gt, (feats.shape[0], self.seq_per_img, -1))[:, 0]
+            concepts_gt = F.pad(concepts_gt, (1, 0, 0, 0), "constant", self.bos_index)
+            # concepts_gt = concepts_gt[:, :-1]
+            concept_embeddings = self.embed(concepts_gt)
+            concept_embeddings = concept_embeddings.permute(1, 0, 2) # change to (time, batch, channel)
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.svo_length+1).cuda()  # +1 for <bos> token
+            tgt_key_padding_mask = (concepts_gt == 0)  # create padding mask
+            if self.svo_pos_encoder is not None:
+                concept_embeddings = self.svo_pos_encoder(concept_embeddings)
+            out = self.concept_decoder(concept_embeddings, feats, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)   # out is target shp
+            out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
 
-        # Run the decoder
-        out = self.concept_decoder(concept_embeddings,
-                                   feats,
-                                   tgt_mask=tgt_mask,
-                                   tgt_key_padding_mask=tgt_key_padding_mask)
+            concept_probs = F.log_softmax(self.logit(out), dim=-1)[:, :-1]
+            concept_probs_b = F.softmax(self.logit(out), dim=-1)[:, :-1]
+            concept_probs_c = torch.max(concept_probs_b, dim=1)[0]
+            concept_idxs = concept_probs_b.argmax(-1)
 
-        out = out[:-1].permute(1, 0, 2)  # remove the last token and change back to (batch, concepts, channels)
-        caption_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)  # calc word probs
-        caption_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)  # get best word indexs (not used)
+        else:  # auto-regressive prediction at inference
 
-        caption_seq = concepts_gt[:, 1:]  # get gt caption (minus the BOS token)
-        caption_logprobs = caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2)
+            concept_probs = torch.zeros((feats.size(0), self.svo_length, self.vocab_size)).cuda()
+            concept_probs_b = torch.zeros((feats.size(0), self.svo_length, self.vocab_size)).cuda()
+            concept_idxs = torch.zeros((feats.size(0), self.svo_length), dtype=torch.long).cuda()
+            concept_idxs = F.pad(concept_idxs, (1, 0, 0, 0), "constant", self.bos_index)
 
-        # output size is: B x L x V (where L is truncated lengths
-        # which are different for different batch)
-        return caption_probs, caption_seq, caption_logprobs
+            for i in range(1, self.svo_length+1):
+                decoder_input = self.embed(concept_idxs[:, :i])
+
+                tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i).cuda()
+                decoder_input = decoder_input.permute(1, 0, 2)
+                if self.svo_pos_encoder is not None:
+                    decoder_input = self.svo_pos_encoder(decoder_input)  # add positional encoding
+                decoder_output = self.concept_decoder(decoder_input, feats, tgt_mask=tgt_mask)
+
+                concept_idxs[:, i] = F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1)
+                concept_probs_b[:, i - 1] = F.softmax(self.logit(decoder_output[-1]), dim=-1)
+                concept_probs[:, i - 1] = F.log_softmax(self.logit(decoder_output[-1]), dim=-1)
+
+            concept_idxs = concept_idxs[:, 1:]  # remove '<bos>'
+
+
+        if self.filter_type in ['iuc']:
+            raise NotImplementedError  # concept_probs_c dont work
+            # concept_probs = torch.max(concept_probs_b, dim=1)[0]  # use max pred confs
+            # concept_probs = torch.clamp(
+            #     torch.sum(torch.nn.functional.one_hot(concept_idxs, num_classes=self.vocab_size), axis=1), 0, 1).type(
+            #     torch.FloatTensor).cuda()  # use hard pred confs
+
+        return concept_probs, concept_idxs
 
     def forward(self, feats, bfeats, seq, concepts):
-
-        one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(concepts, num_classes=self.vocab_size), axis=1), 0, 1)
-        one_hot[:, 0] = 0  # make the padding index 0
 
         feats_enc = list()
         for i, feat in enumerate(feats):
@@ -1277,12 +1302,20 @@ class TRF_DEC(nn.Module):
 
         #### GROUNDER ####
         concept_probs = None
-        if self.filter_type in ['niuc']:
-            feats_, concept_probs, top_emb, mask = self.non_iterative_grounder(combined_enc)
+        if self.filter_type in ['niuc', 'iuc', 'ioc']:
+            if self.filter_type in ['niuc']:
+                concept_probs, concept_seq = self.non_iterative_grounder(combined_enc)
+            elif self.filter_type in ['iuc', 'ioc']:
+                concept_probs, concept_seq = self.iterative_grounder(combined_enc, concepts_gt=concepts)
+            else:
+                raise NotImplementedError
+
+            concept_probs = self.feat_expander(concept_probs)
+
             if self.gt_concepts_while_training and self.training:  # use gt concepts for cap gen
-                combined_enc = torch.cat((combined_enc, self.embed(torch.reshape(concepts, (top_emb.shape[0], self.seq_per_img, -1))[:, 0])), dim=1)
+                combined_enc = torch.cat((combined_enc, self.embed(torch.reshape(concepts, (concept_seq.shape[0], self.seq_per_img, -1))[:, 0])), dim=1)
             else: # dont use gt for cap gen
-                combined_enc = torch.cat((combined_enc, top_emb), dim=1)
+                combined_enc = torch.cat((combined_enc, self.embed(concept_seq)), dim=1)
         #### END GROUNDER ####
 
         encoded_features = self.feat_expander(combined_enc).permute(1, 0, 2)
@@ -1301,17 +1334,14 @@ class TRF_DEC(nn.Module):
 
         out = out[:-1].permute(1, 0, 2)  # remove the last token and change back to (batch, concepts, channels)
         caption_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)  # calc word probs
-        caption_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)  # get best word indexs (not used)
+        caption_seq = F.softmax(self.logit(out), dim=-1).argmax(-1)  # get best word indexs
 
-        caption_seq = seq[:, 1:]  # get gt caption (minus the BOS token)
-        caption_logprobs = caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2)
+        caption_seq = seq[:, 1:]  # get gt caption (minus the BOS token) # todo check should we be outputting pred of gt?
 
         # output size is: B x L x V (where L is truncated lengths
         # which are different for different batch)
-        if concept_probs is not None:
-            return caption_probs, caption_seq, caption_logprobs, concept_probs, one_hot
-        else:
-            return caption_probs, caption_seq, caption_logprobs, None, None, None
+        return caption_probs, caption_seq, caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2), \
+               concept_probs, concept_seq, concept_probs.gather(2, concept_seq.unsqueeze(2)).squeeze(2)
 
     def sample(self, feats, bfeats, pos, opt={}):
         beam_size = opt.get('beam_size', 1)
@@ -1332,14 +1362,19 @@ class TRF_DEC(nn.Module):
 
         #### GROUNDER ####
         concept_probs = None
-        feats_ = None
-        if self.filter_type in ['niuc']:
-            feats_, concept_probs, top_emb, mask = self.non_iterative_grounder(combined_enc, expand_feat=expand_feat)
-            combined_enc = torch.cat((combined_enc, feats_, top_emb), dim=1)  # todo use _feats, but maybe dont need to
+        if self.filter_type in ['niuc', 'iuc']:
+            if self.filter_type in ['niuc']:
+                concept_probs, top_emb = self.non_iterative_grounder(combined_enc)
+            elif self.filter_type in ['iuc']:
+                concept_probs, top_emb = self.iterative_grounder(combined_enc, pos)
+            else:
+                raise NotImplementedError
+
+            combined_enc = torch.cat((combined_enc, top_emb), dim=1)  # todo use _feats, but maybe dont need to
         #### END GROUNDER ####
 
         if beam_size > 1:
-            return ((*self.sample_beam(combined_enc, opt)), feats_, concept_probs)
+            return ((*self.sample_beam(combined_enc, opt)), concept_probs)
         else:
             return NotImplementedError
 
