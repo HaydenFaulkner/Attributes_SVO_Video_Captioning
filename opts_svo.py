@@ -190,6 +190,12 @@ def parse_opts():
         default=1,
         help='number of heads in the grounder decoder')
     parser.add_argument(
+        '--gt_concepts_while_training',
+        type=int,
+        default=1,
+        help='use the ground truth concepts for input into the caption generator during training')
+
+    parser.add_argument(
         '--svo_length',
         type=int,
         default=3,

@@ -1087,11 +1087,11 @@ class TRF_DEC(nn.Module):
     def __init__(self, opt):
         super(TRF_DEC, self).__init__()
         self.vocab_size = opt.vocab_size
-        self.concept_vocab_size = opt.vocab_size#943+3#opt.concept_vocab_size
         self.bfeat_dims = opt.bfeat_dims
         self.feat_dims = opt.feat_dims
         self.num_feats = len(self.feat_dims)
         self.filter_type = opt.filter_type
+        self.gt_concepts_while_training = opt.gt_concepts_while_training
 
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
@@ -1132,8 +1132,6 @@ class TRF_DEC(nn.Module):
 
         # grounding module
         if self.filter_type in ['niuc']:
-            self.concept_embed = nn.Embedding(self.concept_vocab_size, self.textual_encoding_size)
-            self.concept_logit = nn.Linear(self.textual_encoding_size, self.concept_vocab_size)
             # non-iterative
             self.feat_pool_q = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
             self.feat_pool_k = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
@@ -1222,12 +1220,12 @@ class TRF_DEC(nn.Module):
         feats_ = self.feed_forward(feats_)
 
         # encode the features to concept-vocab size and sigmoid
-        scores = self.concept_logit(feats_).squeeze(1)
+        scores = self.logit(feats_).squeeze(1)
 
         concept_probs = F.sigmoid(scores)
         top_v, top_i = torch.topk(concept_probs, k=5)  # get the top 5 preds
         mask = top_v > .5  # mask threshold
-        top_emb = self.concept_embed(top_i)
+        top_emb = self.embed(top_i)
 
         if expand_feat:  # expand to seq_per_img length
             scores = self.feat_expander(scores)
@@ -1235,7 +1233,7 @@ class TRF_DEC(nn.Module):
         return feats_, scores, top_emb, mask
 
     def iterative_grounder(self, feats, concepts_gt, expand_feat=1):
-        concept_embeddings = self.concept_embed(concepts_gt)  # emb indexs -> embeddings
+        concept_embeddings = self.embed(concepts_gt)  # emb indexs -> embeddings
         concept_embeddings = concept_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
         concept_embeddings = self.pos_encoder(concept_embeddings)  # add positional encoding
         tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, concepts_gt.size(-1)).cuda()  # create sequence mask
@@ -1248,8 +1246,8 @@ class TRF_DEC(nn.Module):
                                    tgt_key_padding_mask=tgt_key_padding_mask)
 
         out = out[:-1].permute(1, 0, 2)  # remove the last token and change back to (batch, concepts, channels)
-        caption_probs = F.log_softmax(self.concept_logit(self.dropout(out)), dim=-1)  # calc word probs
-        caption_idxs = F.softmax(self.concept_logit(out), dim=-1).argmax(-1)  # get best word indexs (not used)
+        caption_probs = F.log_softmax(self.logit(self.dropout(out)), dim=-1)  # calc word probs
+        caption_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)  # get best word indexs (not used)
 
         caption_seq = concepts_gt[:, 1:]  # get gt caption (minus the BOS token)
         caption_logprobs = caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2)
@@ -1260,7 +1258,7 @@ class TRF_DEC(nn.Module):
 
     def forward(self, feats, bfeats, seq, concepts):
 
-        one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(concepts, num_classes=self.concept_vocab_size), axis=1), 0, 1)
+        one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(concepts, num_classes=self.vocab_size), axis=1), 0, 1)
         one_hot[:, 0] = 0  # make the padding index 0
 
         feats_enc = list()
@@ -1280,7 +1278,10 @@ class TRF_DEC(nn.Module):
         concept_probs = None
         if self.filter_type in ['niuc']:
             feats_, concept_probs, top_emb, mask = self.non_iterative_grounder(combined_enc)
-            combined_enc = torch.cat((combined_enc, feats_, top_emb), dim=1)  # todo use _feats, but maybe dont need to
+            if self.gt_concepts_while_training and self.training:  # use gt concepts for cap gen
+                combined_enc = torch.cat((combined_enc, self.embed(torch.reshape(concepts, (top_emb.shape[0], self.seq_per_img, -1))[:, 0])), dim=1)
+            else: # dont use gt for cap gen
+                combined_enc = torch.cat((combined_enc, top_emb), dim=1)
         #### END GROUNDER ####
 
         encoded_features = self.feat_expander(combined_enc).permute(1, 0, 2)

@@ -110,7 +110,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         while True:
             data = train_loader.get_batch()
             labels_svo = data['labels_svo']
-            one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(labels_svo, num_classes=model.concept_vocab_size), axis=1), 0, 1)
+            one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(labels_svo, num_classes=model.vocab_size), axis=1), 0, 1)
             one_hot[:, 0] = 0  # make the padding index 0
             totes += one_hot.shape[0]
             if one_hot_sums is None:
@@ -386,6 +386,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
     predictions = []
     gt_avglogps = []
     test_avglogps = []
+    prec_recs = dict()
     for ii in range(num_iters):
         data = loader.get_batch()
         feats = data['feats']
@@ -436,6 +437,25 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
 
             if opt.filter_type in ['niuc']:
                 sents_svo = utils.decode_concepts_sequence(opt.vocab, seq_svo)
+                gt_sents_svo = utils.decode_sequence(opt.vocab, torch.reshape(labels_svo, (len(sents_svo), opt.test_seq_per_img, -1))[:, 0])
+                gt_sents_svo = [g.split(' ') for g in gt_sents_svo]
+                for bi in range(len(gt_sents_svo)):
+                    pr_words = list()
+                    for pr in sents_svo[bi]:
+                        pr_word = pr.split(' ')[0]
+                        pr_words.append(pr_word)
+                        if pr_word not in prec_recs:
+                            prec_recs[pr_word] = [0, 0, 0]
+                        if pr_word in gt_sents_svo:
+                            prec_recs[pr_word][0] += 1  # TP
+                        else:
+                            prec_recs[pr_word][1] += 1  # FP
+                    for gt in gt_sents_svo[bi]:
+                        if gt not in prec_recs:
+                            prec_recs[gt] = [0, 0, 0]
+                        if gt not in pr_words:
+                            prec_recs[gt][2] += 1  # FN
+
             elif opt.filter_type in ['svo_transformer_2']:
                 sents_svo = utils.decode_sequence_new_svo(opt.vocab, seq_svo)
             else:
@@ -447,7 +467,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
                 else:
                     entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
                 predictions.append(entry)
-                logger.debug('[%d] video %s: %s (%s)' % (jj, entry['image_id'], entry['caption'], entry['svo']))
+                logger.debug('[%d] video %s: %s pr(%s) gt(%s)' % (jj, entry['image_id'], entry['caption'], entry['svo'], gt_sents_svo[jj]))
         else:
 
             for jj, sent in enumerate(sents):
@@ -489,6 +509,25 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
 
         logger.info('Wrote GT logp to: %s', gt_avglogps_file)
 
+    if len(prec_recs.keys()) > 0:
+        prec = dict()
+        rec = dict()
+        for k, v in prec_recs.items():
+            if v[0] + v[1] > 0:
+                prec[k] = v[0] / float(v[0] + v[1])
+            else:
+                prec[k] = 0
+            if v[0] + v[2] > 0:
+                rec[k] = v[0] / float(v[0] + v[2])
+            else:
+                rec[k] = 0
+
+        precv = sum(prec.values())/len(prec_recs)
+        recv = sum(rec.values())/len(prec_recs)
+        results['scores'].update({'prec': precv, 'rec': recv})
+        print('prec: ', precv, ' .. rec: ', recv)
+        logger.debug('rec: ' + str(prec))
+        logger.debug('rec: ' + str(rec))
     return results
 
 
