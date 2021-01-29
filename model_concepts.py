@@ -1130,6 +1130,16 @@ class TRF_DEC(nn.Module):
         self.rf_encoder = nn.Sequential(nn.Linear(1024, self.visual_encoding_size-4), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
         self.rb_encoder = nn.Sequential(nn.Linear(4, 4), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
 
+
+        # Transformer input features Encoder
+        self.concept_encoder = None
+        if self.input_encoder_layers > 0:
+            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size,
+                                                               nhead=self.input_encoder_heads,
+                                                               dim_feedforward=self.input_encoder_size,
+                                                               dropout=self.drop_prob_lm)
+            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.input_encoder_layers)
+
         # grounding module
         if self.filter_type in ['niuc']:
             # non-iterative
@@ -1155,26 +1165,17 @@ class TRF_DEC(nn.Module):
                                                                dim_feedforward=self.grounder_size, dropout=self.drop_prob_lm)
             self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.grounder_layers)
 
-        # Transformer Encoder
-        self.concept_encoder = None
-        if self.input_encoder_layers > 0:
-            concept_encoder_layer = nn.TransformerEncoderLayer(d_model=self.visual_encoding_size,
-                                                               nhead=self.input_encoder_heads,
-                                                               dim_feedforward=self.input_encoder_size,
-                                                               dropout=self.drop_prob_lm)
-            self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.input_encoder_layers)
 
-        # Transformer Decoder
+        # Transformer Caption Decoder
         # encode word positions
         self.pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.seq_length)
-
         # Caption Prediction Module (a decoder on the global feats and k concept embeddings)
         caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.captioner_heads,
                                                            dim_feedforward=self.captioner_size, dropout=self.drop_prob_lm)
         self.caption_decoder = nn.TransformerDecoder(caption_decoder_layer, num_layers=self.captioner_layers)
 
-        self.feat_expander = FeatExpander(self.seq_per_img)
 
+        self.feat_expander = FeatExpander(self.seq_per_img)
         opt.video_encoding_size = self.visual_encoding_size
 
     def set_ss_prob(self, p):

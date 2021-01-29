@@ -262,9 +262,9 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
                 if random.random() < 0.05:  # compare the svos during training
                     print('---------------------')
                     print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))
-                    print(utils.decode_sequence(opt.vocab, labels_svo)[:5])
+                    print(utils.decode_sequence(opt.vocab, labels_svo)[0])
                     if opt.filter_type in ['svo_transformer_2', 'niuc']:
-                        print(utils.decode_sequence_new_svo(opt.vocab, pred_svo)[:5])
+                        print(utils.decode_sequence_new_svo(opt.vocab, pred_svo)[0])
                     else:
                         print(utils.decode_sequence(opt.vocab, svo_it)[:5])
                 loss = loss_cap + (opt.labda/10.0)*loss_svo
@@ -446,7 +446,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
                         pr_words.append(pr_word)
                         if pr_word not in prec_recs:
                             prec_recs[pr_word] = [0, 0, 0]
-                        if pr_word in gt_sents_svo:
+                        if pr_word in gt_sents_svo[bi]:
                             prec_recs[pr_word][0] += 1  # TP
                         else:
                             prec_recs[pr_word][1] += 1  # FP
@@ -526,7 +526,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
         recv = sum(rec.values())/len(prec_recs)
         results['scores'].update({'prec': precv, 'rec': recv})
         print('prec: ', precv, ' .. rec: ', recv)
-        logger.debug('rec: ' + str(prec))
+        logger.debug('prec: ' + str(prec))
         logger.debug('rec: ' + str(rec))
     return results
 
