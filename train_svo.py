@@ -20,6 +20,7 @@ import numpy as np
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
 from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA, CONTRAB, RNN_DEC, TRF_DEC
+from model_general import GeneralModel
 
 import utils
 import opts_svo as opts
@@ -264,7 +265,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
                     print('---------------------')
                     print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))
                     print(utils.decode_sequence(opt.vocab, labels_svo)[0])
-                    if opt.filter_type in ['svo_transformer_2', 'niuc', 'iuc', 'iou']:
+                    if opt.filter_type in ['svo_transformer_2', 'niuc', 'iuc']:
                         print(utils.decode_sequence_new_svo(opt.vocab, pred_svo)[0])
                     else:
                         print(utils.decode_sequence(opt.vocab, svo_it)[:5])
@@ -425,7 +426,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
             del pred, gt_seq, gt_logseq
             torch.cuda.empty_cache()
 
-        seq, logseq, seq_svo = model.sample(feats, bfeats, labels_svo, {'beam_size': opt.beam_size})
+        seq, logseq, _, seq_svo = model.sample(feats, bfeats, labels_svo, {'beam_size': opt.beam_size})
         sents = utils.decode_sequence(opt.vocab, seq)
         if opt.output_logp == 1:
             test_avglogp = utils.compute_avglogp(seq, logseq)
@@ -434,7 +435,10 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
         if seq_svo is not None:
 
             if opt.filter_type in ['niuc', 'iuc', 'ioc']:
-                sents_svo = utils.decode_concepts_sequence(opt.vocab, seq_svo)
+                if opt.filter_type in ['ioc']:
+                    sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
+                else:
+                    sents_svo = utils.decode_concepts_sequence(opt.vocab, seq_svo)
                 gt_sents_svo = utils.decode_sequence(opt.vocab, torch.reshape(labels_svo, (len(sents_svo), opt.test_seq_per_img, -1))[:, 0])
                 gt_sents_svo = [g.split(' ') for g in gt_sents_svo]
                 for bi in range(len(gt_sents_svo)):
@@ -636,28 +640,29 @@ if __name__ == '__main__':
     opt.history_file = opt.model_file.replace('.pth', '_history.json', 1)
 
     logger.info('Building model...')
-    if opt.captioner_type in ['lstm', 'gru', 'rnn']:
-        if opt.filter_type in ['none', 'None']:
-            model = RNN_DEC(opt)
-        elif opt.filter_type in ['svo_original']:
-            model = SVORNN(opt)
-        elif opt.filter_type in ['svo_transformer']:
-            model = CONRNN(opt)
-        else:
-            raise NotImplementedError
-    elif opt.captioner_type in ['transformer']:
-        if opt.filter_type in ['none', 'None', 'niuc', 'iuc', 'ioc']:
-            model = TRF_DEC(opt)
-        elif opt.filter_type in ['svo_transformer']:
-            model = CONTRA(opt)
-        elif opt.filter_type in ['svo_transformer_2']:
-            model = CONTRAB(opt)
-        elif opt.filter_type in ['visual_encoder_only']:
-            model = SINTRA(opt)
-        else:
-            raise NotImplementedError
-    else:
-        raise NotImplementedError
+    model = GeneralModel(opt)
+    # if opt.captioner_type in ['lstm', 'gru', 'rnn']:
+    #     if opt.filter_type in ['none', 'None']:
+    #         model = RNN_DEC(opt)
+    #     elif opt.filter_type in ['svo_original']:
+    #         model = SVORNN(opt)
+    #     elif opt.filter_type in ['svo_transformer']:
+    #         model = CONRNN(opt)
+    #     else:
+    #         raise NotImplementedError
+    # elif opt.captioner_type in ['transformer']:
+    #     if opt.filter_type in ['none', 'None', 'niuc', 'iuc', 'ioc']:
+    #         model = TRF_DEC(opt)
+    #     elif opt.filter_type in ['svo_transformer']:
+    #         model = CONTRA(opt)
+    #     elif opt.filter_type in ['svo_transformer_2']:
+    #         model = CONTRAB(opt)
+    #     elif opt.filter_type in ['visual_encoder_only']:
+    #         model = SINTRA(opt)
+    #     else:
+    #         raise NotImplementedError
+    # else:
+    #     raise NotImplementedError
 
     xe_criterion = CrossEntropyCriterion()
     rl_criterion = RewardCriterion()

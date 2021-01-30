@@ -153,8 +153,6 @@ class MANet(nn.Module):
         return x * att_weight
 
 
-
-
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_model, dropout=0.1, max_len=5000):
@@ -172,6 +170,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
+
 
 # TODO make a box enc to FIRST cat then encode, rather than encode then cat
 # class BoxEnc(nn.Module):
@@ -198,6 +197,7 @@ class PositionalEncoding(nn.Module):
 #         else:
 #             out = torch.cat([m(feats[i]) for i, m in enumerate(self.feat_list)], 2)
 #         return out
+
 
 class SVORNN(nn.Module):
     """
@@ -707,6 +707,7 @@ class SVORNN(nn.Module):
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
+
 class RNN_DEC(nn.Module):
     """
     Attention over the 12 features, RNN cap gen attends every iteration
@@ -1078,6 +1079,7 @@ class RNN_DEC(nn.Module):
             seqLogprobs[:, k] = self.done_beams[k][0]['logps']
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
+
 
 class TRF_DEC(nn.Module):
     """
@@ -1490,6 +1492,7 @@ class TRF_DEC(nn.Module):
             seqLogprobs[:, k] = self.done_beams[k][0]['logps']
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
+
 
 class CONRNN(nn.Module):
     """
@@ -1986,6 +1989,7 @@ class CONRNN(nn.Module):
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
 
+
 class SINTRA(nn.Module):
     """
     A concepts captioning model, with direct connection, no svo/concepts filtering
@@ -2360,6 +2364,7 @@ class SINTRA(nn.Module):
             seqLogprobs[:, k] = self.done_beams[k][0]['logps']
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
+
 
 class CONTRA(nn.Module):
     """
@@ -2793,6 +2798,7 @@ class CONTRA(nn.Module):
             seqLogprobs[:, k] = self.done_beams[k][0]['logps']
 
         return seq.transpose(0, 1), seqLogprobs.transpose(0, 1)
+
 
 class CONTRAB(nn.Module):
     """

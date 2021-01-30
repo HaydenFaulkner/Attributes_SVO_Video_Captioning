@@ -151,9 +151,6 @@ def parse_opts():
         default='svo_original',
         choices=[
             'none',
-            'niuc',
-            'iuc',
-            'ioc',
             'tran_enc',
             'svo_original',
             'svo_transformer',
@@ -169,13 +166,23 @@ def parse_opts():
     parser.add_argument(
         '--input_encoder_layers',
         type=int,
-        default=-1,
+        default=0,
         help='number of layers in the input encoder')
     parser.add_argument(
         '--input_encoder_heads',
         type=int,
         default=1,
         help='number of heads in the input encoder')
+    parser.add_argument(
+        '--grounding_type',
+        type=str,
+        default='none',
+        choices=[
+            'none',
+            'niuc',
+            'iuc',
+            'ioc'],
+        help='type of the grounding prior to captioning')
     parser.add_argument(
         '--grounder_size',
         type=int,
