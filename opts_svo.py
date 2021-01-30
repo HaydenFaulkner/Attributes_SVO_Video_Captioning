@@ -6,6 +6,25 @@ def parse_opts():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        '--dataset',
+        type=str,
+        default='msvd',
+        choices=[
+            'msvd',
+            'msrvtt'],
+        help='Dataset to use')
+
+    parser.add_argument(
+        '--model_id',
+        type=str,
+        help='unique identifier for model')
+    parser.add_argument(
+        '--results_dir',
+        type=str,
+        default='experiments',
+        help='directory to store results')
+
+    parser.add_argument(
         '--model_file',
         type=str,
         help='output model file')
@@ -99,12 +118,12 @@ def parse_opts():
         default=64,
         help='what is the batch size in number of images per batch? (there will be x seq_per_img sentences)')
     parser.add_argument(
-        '--train_seq_per_img',
+        '--train_captions_per_img',
         type=int,
         default=20,
         help='number of captions to sample for each image during training. Done for efficiency since CNN forward pass is expensive.')
     parser.add_argument(
-        '--test_seq_per_img',
+        '--test_captions_per_img',
         type=int,
         default=20,
         help='number of captions to sample for each image during training. Done for efficiency since CNN forward pass is expensive.')
@@ -174,7 +193,7 @@ def parse_opts():
         default=1,
         help='number of heads in the input encoder')
     parser.add_argument(
-        '--grounding_type',
+        '--grounder_type',
         type=str,
         default='none',
         choices=[
@@ -205,15 +224,15 @@ def parse_opts():
         help='use the ground truth concepts for input into the caption generator during training')
 
     parser.add_argument(
-        '--svo_length',
+        '--num_concepts',
         type=int,
         default=3,
-        help='max len of svos (normally 3, 5 or 30)')
+        help='number of concepts (normally 3, 5)')
 
     parser.add_argument(
         '--att_size',
         type=int,
-        default=100,
+        default=512,
         help='size of the att in number of hidden nodes')
     parser.add_argument(
         '--num_lm_layer',

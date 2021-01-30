@@ -183,17 +183,16 @@ class GeneralModel(nn.Module):
         self.bfeat_dims = opt.bfeat_dims
         self.feat_dims = opt.feat_dims
         self.num_feats = len(self.feat_dims)
-        self.filter_type = opt.filter_type
-        self.gt_concepts_while_training = opt.gt_concepts_while_training
-        self.svo_length = opt.svo_length
-        self.att_size = opt.att_size  # used only for rnn captioner
+        self.input_features = opt.input_features
+
+        self.grounder_type = opt.grounder_type
+        self.captioner_type = opt.captioner_type
 
         self.textual_encoding_size = opt.input_encoding_size
         self.visual_encoding_size = opt.input_encoding_size
 
-
         self.drop_prob_lm = opt.drop_prob_lm
-        self.seq_length = opt.seq_length
+        self.caption_length = opt.seq_length
         self.seq_per_img = opt.train_seq_per_img
         self.model_type = opt.model_type
         self.bos_index = 1  # index of the <bos> token
@@ -230,10 +229,12 @@ class GeneralModel(nn.Module):
             self.concept_encoder = nn.TransformerEncoder(concept_encoder_layer, num_layers=self.input_encoder_layers)
 
         ## INITIALISE GROUNDING MODULE
+        self.gt_concepts_while_training = opt.gt_concepts_while_training
+        self.num_concepts = opt.num_concepts
         self.grounder_layers = opt.grounder_layers
         self.grounder_heads = opt.grounder_heads
         self.grounder_size = opt.grounder_size
-        if self.grounding_type in ['niuc']:
+        if self.grounder_type in ['niuc']:
             # non-iterative
             self.feat_pool_q = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
             self.feat_pool_k = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
@@ -252,21 +253,20 @@ class GeneralModel(nn.Module):
                 self.feed_forward.append(nn.Linear(self.grounder_size, self.textual_encoding_size))
                 self.feed_forward.append(nn.ReLU())
                 self.feed_forward.append(nn.Dropout(self.drop_prob_lm))
-        elif self.grounding_type in ['iuc', 'ioc']:
-            self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.svo_length+1)
+        elif self.grounder_type in ['iuc', 'ioc']:
+            self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.num_concepts+1)
             # iterative
             concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.grounder_heads,
                                                                dim_feedforward=self.grounder_size, dropout=self.drop_prob_lm)
             self.concept_decoder = nn.TransformerDecoder(concept_decoder_layer, num_layers=self.grounder_layers)
 
         ## INITIALISE CAPTIONER
-        self.captioner_type = opt.captioner_type
         self.captioner_size = opt.captioner_size
         self.captioner_layers = opt.captioner_layers
         self.captioner_heads = opt.captioner_heads
         if self.captioner_type in ['transformer']:  # Transformer Caption Decoder
             # encode word positions
-            self.pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.seq_length)
+            self.pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.caption_length)
 
             # The transformer
             caption_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.captioner_heads,
@@ -275,9 +275,9 @@ class GeneralModel(nn.Module):
 
         elif self.captioner_type in ['rnn', 'lstm', 'gru']:  # RNN Caption Decoder
             # feature attention layers
-            self.v2a_layer = nn.Linear(self.visual_encoding_size, self.att_size)
-            self.h2a_layer = nn.Linear(self.captioner_size, self.att_size)
-            self.att_layer = nn.Linear(self.att_size, 1)
+            self.v2a_layer = nn.Linear(self.visual_encoding_size, opt.att_size)
+            self.h2a_layer = nn.Linear(self.captioner_size, opt.att_size)
+            self.att_layer = nn.Linear(opt.att_size, 1)
 
             # The RNN
             self.core = RNNUnit(opt)  # the caption generation rnn LSTM(512) with input size 2048
@@ -315,7 +315,7 @@ class GeneralModel(nn.Module):
 
     def non_iterative_grounder(self, feats):
         # embed the features for grounding attention
-        q_feats = self.feat_pool_q(feats[:, 0:1]) # use img feat as query
+        q_feats = self.feat_pool_q(feats[:, 0:1])  # use img feat as query
         k_feats = self.feat_pool_k(feats)
         v_feats = self.feat_pool_v(feats)
 
@@ -337,11 +337,13 @@ class GeneralModel(nn.Module):
         scores = self.logit(feats_).squeeze(1)
 
         concept_probs = F.sigmoid(scores)
-        top_v, top_i = torch.topk(concept_probs, k=5)  # get the top 5 preds
+        top_v, top_i = torch.topk(concept_probs, k=self.num_concepts)  # get the top preds
         mask = top_v > .5  # mask threshold
         top_emb = self.embed(top_i)
 
-        return scores, top_emb
+        concept_idxs = top_i
+        concept_probs = concept_probs.unsqueeze(1).repeat(1, self.num_concepts, 1)  # repeat so it is the right shape
+        return concept_probs, concept_idxs
 
     def iterative_grounder(self, feats, gt_concepts):
 
@@ -351,7 +353,7 @@ class GeneralModel(nn.Module):
             # gt_concepts = gt_concepts[:, :-1]
             concept_embeddings = self.embed(gt_concepts)
             concept_embeddings = concept_embeddings.permute(1, 0, 2) # change to (time, batch, channel)
-            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.svo_length+1).cuda()  # +1 for <bos> token
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.num_concepts+1).cuda()  # +1 for <bos> token
             tgt_key_padding_mask = (gt_concepts == 0)  # create padding mask
             if self.svo_pos_encoder is not None:
                 concept_embeddings = self.svo_pos_encoder(concept_embeddings)
@@ -365,12 +367,12 @@ class GeneralModel(nn.Module):
 
         else:  # auto-regressive prediction at inference
 
-            concept_probs = torch.zeros((feats.size(0), self.svo_length, self.vocab_size)).cuda()
-            concept_probs_b = torch.zeros((feats.size(0), self.svo_length, self.vocab_size)).cuda()
-            concept_idxs = torch.zeros((feats.size(0), self.svo_length), dtype=torch.long).cuda()
+            concept_probs = torch.zeros((feats.size(0), self.num_concepts, self.vocab_size)).cuda()
+            concept_probs_b = torch.zeros((feats.size(0), self.num_concepts, self.vocab_size)).cuda()
+            concept_idxs = torch.zeros((feats.size(0), self.num_concepts), dtype=torch.long).cuda()
             concept_idxs = F.pad(concept_idxs, (1, 0, 0, 0), "constant", self.bos_index)
 
-            for i in range(1, self.svo_length+1):
+            for i in range(1, self.num_concepts+1):
                 decoder_input = self.embed(concept_idxs[:, :i])
 
                 tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i).cuda()
@@ -386,7 +388,7 @@ class GeneralModel(nn.Module):
             concept_idxs = concept_idxs[:, 1:]  # remove '<bos>'
 
 
-        if self.grounding_type in ['iuc']:
+        if self.grounder_type in ['iuc']:
             raise NotImplementedError  # concept_probs_c dont work
             # concept_probs = torch.max(concept_probs_b, dim=1)[0]  # use max pred confs
             # concept_probs = torch.clamp(
@@ -509,6 +511,19 @@ class GeneralModel(nn.Module):
         r_enc = torch.cat((rf_enc, rb_enc), dim=-1)
         encoded_features = torch.cat(feats_enc + [r_enc], dim=1)
 
+        # only use a certain group of features
+        if not self.input_features == 'imrc':
+            encoded_features_pass = list()
+            if 'i' in self.input_features:
+                encoded_features_pass.append(encoded_features[:, 0:1, :])
+            if 'm' in self.input_features:
+                encoded_features_pass.append(encoded_features[:, 1:2, :])
+            if 'r' in self.input_features:
+                encoded_features_pass.append(encoded_features[:, -10:, :])
+            if 'c' in self.input_features and encoded_features.shape[1] == 13:
+                encoded_features_pass.append(encoded_features[:, 2:3, :])
+            encoded_features = torch.cat(encoded_features_pass, dim=1)
+
         #### ENCODER ####
         if self.concept_encoder is not None:
             encoded_features = self.concept_encoder(encoded_features.permute(1, 0, 2)).permute(1, 0, 2)
@@ -517,10 +532,10 @@ class GeneralModel(nn.Module):
         #### GROUNDER ####
         concept_probs = None
         concept_seq = None
-        if self.grounding_type in ['niuc', 'iuc', 'ioc']:
-            if self.grounding_type in ['niuc']:
+        if self.grounder_type in ['niuc', 'iuc', 'ioc']:
+            if self.grounder_type in ['niuc']:
                 concept_probs, concept_seq = self.non_iterative_grounder(encoded_features)
-            elif self.grounding_type in ['iuc', 'ioc']:
+            elif self.grounder_type in ['iuc', 'ioc']:
                 concept_probs, concept_seq = self.iterative_grounder(encoded_features, gt_concepts=gt_concepts)
             else:
                 raise NotImplementedError
@@ -537,8 +552,6 @@ class GeneralModel(nn.Module):
 
         combined_enc, concept_probs, concept_seq = self.feature_filtering(feats, bfeats, gt_concepts)
 
-        if concept_probs is not None:
-            concept_probs = self.feat_expander(concept_probs)
         encoded_features = self.feat_expander(combined_enc)
 
         if self.captioner_type in ['transformer']:  # Captioner - Transformer
@@ -548,8 +561,15 @@ class GeneralModel(nn.Module):
 
         # output size is: B x L x V (where L is truncated lengths
         # which are different for different batch)
-        return caption_probs, caption_seq, caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2), \
-               concept_probs, concept_seq, concept_probs.gather(2, concept_seq.unsqueeze(2)).squeeze(2)
+        if concept_probs is not None:
+            concept_probs = self.feat_expander(concept_probs)
+            concept_seq = self.feat_expander(concept_seq)
+
+            return caption_probs, caption_seq, caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2), \
+                   concept_probs, concept_seq, concept_probs.gather(2, concept_seq.unsqueeze(2)).squeeze(2)
+        else:
+            return caption_probs, caption_seq, caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2), \
+                   None, None, None
 
     def sample(self, feats, bfeats, gt_concepts, opt={}):
         beam_size = opt.get('beam_size', 1)
@@ -569,8 +589,8 @@ class GeneralModel(nn.Module):
 
         batch_size = encoded_features.size(0)
 
-        seq = torch.LongTensor(self.seq_length, batch_size).zero_()
-        seqLogprobs = torch.FloatTensor(self.seq_length, batch_size)
+        seq = torch.LongTensor(self.caption_length, batch_size).zero_()
+        seqLogprobs = torch.FloatTensor(self.caption_length, batch_size)
         # lets process every image independently for now, for simplicity
 
         self.done_beams = [[] for _ in range(batch_size)]
@@ -580,16 +600,16 @@ class GeneralModel(nn.Module):
                 state = self.init_hidden(beam_size)
             encoded_features_k = encoded_features[k].expand(beam_size, encoded_features.size(1), self.visual_encoding_size)
 
-            beam_seq = torch.LongTensor(self.seq_length, beam_size).zero_()
-            beam_seq_logprobs = torch.FloatTensor(self.seq_length, beam_size).zero_()
+            beam_seq = torch.LongTensor(self.caption_length, beam_size).zero_()
+            beam_seq_logprobs = torch.FloatTensor(self.caption_length, beam_size).zero_()
             # running sum of logprobs for each beam
             beam_logprobs_sum = torch.zeros(beam_size)
 
             # -- if <image feature> is input at the first step, use index -1
             start_i = -1 if self.model_type == 'standard' else 0
-            end_i = self.seq_length - 1
+            end_i = self.caption_length - 1
 
-            its = torch.LongTensor(self.seq_length, beam_size).zero_().cuda()  #TODO TRAN ONLY
+            its = torch.LongTensor(self.caption_length, beam_size).zero_().cuda()  #TODO TRAN ONLY
             for token_idx in range(start_i, end_i):
                 if token_idx == 0:  # input <bos>
                     it = encoded_features.data.new(beam_size).long().fill_(self.bos_index)  # [1,1,1,1,1]
@@ -650,7 +670,7 @@ class GeneralModel(nn.Module):
                         # the new (sum) logprob along this beam
                         beam_logprobs_sum[vix] = v['p']
 
-                        if v['c'] == 0 or token_idx == self.seq_length - 2:
+                        if v['c'] == 0 or token_idx == self.caption_length - 2:
                             # END token special case here, or we reached the end.
                             # add the beam to a set of done beams
                             if token_idx > 1:
