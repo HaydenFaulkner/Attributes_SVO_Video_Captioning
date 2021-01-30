@@ -230,6 +230,7 @@ class GeneralModel(nn.Module):
 
         ## INITIALISE GROUNDING MODULE
         self.gt_concepts_while_training = opt.gt_concepts_while_training
+        self.gt_concepts_while_testing = opt.gt_concepts_while_testing
         self.num_concepts = opt.num_concepts
         self.grounder_layers = opt.grounder_layers
         self.grounder_heads = opt.grounder_heads
