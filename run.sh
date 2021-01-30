@@ -17,21 +17,28 @@ python train.py --dataset msrvtt --captioner_type lstm --model_id lstm_1_ve  --b
 python train.py --dataset msvd --captioner_type transformer --model_id transformer_1_ve --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048  --captioner_heads 8 --input_encoder_layers 1
 python train.py --dataset msrvtt --captioner_type transformer --model_id transformer_1_ve  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048  --captioner_heads 8 --input_encoder_layers 1
 
-# Add grounding with single stage sigmoid with 5 top concepts
+# Add grounding with single stage sigmoid with 5 top concepts (unconditioned, unordered)
 python train.py --dataset msvd --grounder_type niuc --captioner_type lstm --model_id lstm_1_niuc --batch_size 8 --test_batch_size 8 --max_epochs 100 --num_concepts 5 --concepts_h5 sl_top_concepts
 python train.py --dataset msrvtt --grounder_type niuc --captioner_type lstm --model_id lstm_1_niuc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --num_concepts 5 --concepts_h5 sl_top_concepts
 
 python train.py --dataset msvd --grounder_type niuc --captioner_type transformer --model_id transformer_1_niuc --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048  --captioner_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 python train.py --dataset msrvtt --grounder_type niuc --captioner_type transformer --model_id transformer_1_niuc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048  --captioner_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 
-# Add grounding with iterative transformer with 5 top concepts unordered
+# Add grounding with multi stage (but not conditioned on past concepts) softmax with 5 top concepts (unconditioned, ordered)
+python train.py --dataset msvd --grounder_type nioc --captioner_type lstm --model_id lstm_1_nioc --batch_size 8 --test_batch_size 8 --max_epochs 100 --num_concepts 5 --concepts_h5 sl_top_concepts
+python train.py --dataset msrvtt --grounder_type nioc --captioner_type lstm --model_id lstm_1_nioc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --num_concepts 5 --concepts_h5 sl_top_concepts
+
+python train.py --dataset msvd --grounder_type nioc --captioner_type transformer --model_id transformer_1_nioc --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048  --captioner_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
+python train.py --dataset msrvtt --grounder_type nioc --captioner_type transformer --model_id transformer_1_nioc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048  --captioner_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
+
+# Add grounding with iterative transformer with 5 top concepts (conditional, unordered)
 python train.py --dataset msvd --grounder_type iuc --captioner_type lstm --model_id lstm_1_iuc --batch_size 8 --test_batch_size 8 --max_epochs 100 --grounder_size 2048 --grounder_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 python train.py --dataset msrvtt --grounder_type iuc --captioner_type lstm --model_id lstm_1_iuc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --grounder_size 2048 --grounder_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 
 python train.py --dataset msvd --grounder_type iuc --captioner_type transformer --model_id transformer_1_iuc --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 python train.py --dataset msrvtt --grounder_type iuc --captioner_type transformer --model_id transformer_1_iuc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 
-# Add grounding with iterative transformer with 5 top concepts ordered
+# Add grounding with iterative transformer with 5 top concepts (conditional, ordered)
 python train.py --dataset msvd --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc --batch_size 8 --test_batch_size 8 --max_epochs 100 --grounder_size 2048 --grounder_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 python train.py --dataset msrvtt --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --grounder_size 2048 --grounder_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 
