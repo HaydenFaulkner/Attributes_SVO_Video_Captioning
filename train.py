@@ -252,7 +252,6 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
                 if opt.grounder_type in ['niuc', 'iuc']:
                     svo_criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
                     concepts_one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(labels_svo, num_classes=model.vocab_size), axis=1),  0, 1)
-                    concepts_one_hot[:, 0] = 0  # make the padding index 0
                     loss_svo = svo_criterion(pred_svo[:, 0], concepts_one_hot.type(torch.FloatTensor).cuda())  # pred_svo[: 0] undoes the repeat at the end of non_iterative_grounder()
                 elif opt.svo_length == 3:
                     loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
@@ -731,3 +730,13 @@ if __name__ == '__main__':
 
         test(model, xe_criterion, test_loader, opt)
         logger.info('Testing time: %s', datetime.now() - start)
+
+        if opt.grounder_type in ['niuc', 'iuc', 'ioc']:
+            opt.result_file = os.path.join(opt.results_dir, opt.model_id, opt.dataset + '_gtconcepts.json')
+            opt.gt_concepts_while_testing = 1
+            logger.info('Start testing with gt concepts for upper bound...')
+            start = datetime.now()
+
+            test(model, xe_criterion, test_loader, opt)
+            logger.info('Testing time: %s', datetime.now() - start)
+

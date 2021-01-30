@@ -228,6 +228,11 @@ def parse_opts():
         type=int,
         default=1,
         help='use the ground truth concepts for input into the caption generator during training')
+    parser.add_argument(
+        '--gt_concepts_while_testing',
+        type=int,
+        default=0,
+        help='use the ground truth concepts for input into the caption generator during testing, useful for best case check')
 
     parser.add_argument(
         '--num_concepts',

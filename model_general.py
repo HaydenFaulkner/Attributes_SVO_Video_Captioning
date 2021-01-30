@@ -535,7 +535,7 @@ class GeneralModel(nn.Module):
             else:
                 raise NotImplementedError
 
-            if gt_concepts is not None and self.gt_concepts_while_training and self.training:  # use gt concepts for cap gen
+            if gt_concepts is not None and ((self.gt_concepts_while_training and self.training) or self.gt_concepts_while_testing):  # use gt concepts for cap gen
                 encoded_features = torch.cat((encoded_features, self.embed(torch.reshape(gt_concepts, (concept_seq.shape[0], self.seq_per_img, -1))[:, 0])), dim=1)
             else:  # dont use gt for cap gen
                 encoded_features = torch.cat((encoded_features, self.embed(concept_seq)), dim=1)
@@ -569,7 +569,7 @@ class GeneralModel(nn.Module):
     def sample(self, feats, bfeats, gt_concepts, opt={}):
         beam_size = opt.get('beam_size', 1)
 
-        encoded_features, concept_probs, concept_seq = self.feature_filtering(feats, bfeats)
+        encoded_features, concept_probs, concept_seq = self.feature_filtering(feats, bfeats, gt_concepts)
 
         if beam_size > 1:
             return ((*self.sample_beam(encoded_features, opt)), concept_probs, concept_seq)
