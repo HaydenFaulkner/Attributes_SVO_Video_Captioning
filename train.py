@@ -602,9 +602,9 @@ if __name__ == '__main__':
 
     opt.fr_size_h5 = os.path.join('datasets', opt.dataset, 'features', opt.dataset+'_fr_size.h5')
 
-    opt.train_label_h5 = os.path.join('datasets', opt.dataset, 'metadata', opt.dataset+'_train_sequencelabel.h5')
-    opt.val_label_h5 = os.path.join('datasets', opt.dataset, 'metadata', opt.dataset+'_val_sequencelabel.h5')
-    opt.test_label_h5 = os.path.join('datasets', opt.dataset, 'metadata', opt.dataset+'_test_sequencelabel.h5')
+    opt.train_label_h5 = os.path.join('datasets', opt.dataset, 'metadata', opt.dataset+'_train_'+opt.concepts_h5+'.h5')
+    opt.val_label_h5 = os.path.join('datasets', opt.dataset, 'metadata', opt.dataset+'_val_'+opt.concepts_h5+'.h5')
+    opt.test_label_h5 = os.path.join('datasets', opt.dataset, 'metadata', opt.dataset+'_test_'+opt.concepts_h5+'.h5')
 
     opt.train_cocofmt_file = os.path.join('datasets', opt.dataset, 'metadata', opt.dataset+'_train_cocofmt.json')
     opt.val_cocofmt_file = os.path.join('datasets', opt.dataset, 'metadata', opt.dataset+'_val_cocofmt.json')

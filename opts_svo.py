@@ -34,6 +34,12 @@ def parse_opts():
         help='output result file')
 
     parser.add_argument(
+        '--concepts_h5',
+        type=str,
+        default='sequencelabel',
+        help='what concept labels to use as generated from extract_svo.py')
+
+    parser.add_argument(
         '--train_label_h5',
         type=str,
         help='path to the h5file containing the preprocessed dataset')
