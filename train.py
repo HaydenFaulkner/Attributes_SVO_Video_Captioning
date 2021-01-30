@@ -733,7 +733,7 @@ if __name__ == '__main__':
 
         if opt.grounder_type in ['niuc', 'iuc', 'ioc']:
             opt.result_file = os.path.join(opt.results_dir, opt.model_id, opt.dataset + '_gtconcepts.json')
-            opt.gt_concepts_while_testing = 1
+            model.gt_concepts_while_testing = 1
             logger.info('Start testing with gt concepts for upper bound...')
             start = datetime.now()
 

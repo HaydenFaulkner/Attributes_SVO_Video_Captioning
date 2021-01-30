@@ -254,6 +254,14 @@ class GeneralModel(nn.Module):
                 self.feed_forward.append(nn.Linear(self.grounder_size, self.textual_encoding_size))
                 self.feed_forward.append(nn.ReLU())
                 self.feed_forward.append(nn.Dropout(self.drop_prob_lm))
+        elif self.grounder_type in ['nioc']:
+            self.feat_pool_q = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
+            self.feat_pool_k = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
+            self.feat_pool_v = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
+            self.encoders = list()
+            for _ in range(self.num_concepts):
+                self.encoders.append(nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm)))
+
         elif self.grounder_type in ['iuc', 'ioc']:
             self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.num_concepts+1)
             # iterative
@@ -345,6 +353,30 @@ class GeneralModel(nn.Module):
         concept_idxs = top_i
         concept_probs = concept_probs.unsqueeze(1).repeat(1, self.num_concepts, 1)  # repeat so it is the right shape
         return concept_probs, concept_idxs
+
+    def non_iterative_grounder_multistage(self, feats):
+        # embed the features for grounding attention
+        q_feats = self.feat_pool_q(feats[:, 0:1])  # use img feat as query
+        k_feats = self.feat_pool_k(feats)
+        v_feats = self.feat_pool_v(feats)
+
+        # use the query and key encodings to calculate self-attention weights
+        att = torch.matmul(q_feats, k_feats.transpose(1, 2)) / math.sqrt(q_feats.shape[-1])
+        att = F.softmax(att, dim=-1)
+
+        # # record the attention weights, used for visualisation purposes
+        # att_rec = att.data.cpu().numpy()
+        # self.attention_record = [np.mean(att_rec[i], axis=0) for i in range(len(att_rec))]
+
+        # apply the attention
+        feats_ = torch.matmul(att, v_feats)
+
+        pred_concepts = list()
+
+        for _ in range(self.num_concepts):
+            pass
+
+        return NotImplementedError
 
     def iterative_grounder(self, feats, gt_concepts):
 
@@ -538,6 +570,8 @@ class GeneralModel(nn.Module):
 
             if gt_concepts is not None and ((self.gt_concepts_while_training and self.training) or self.gt_concepts_while_testing):  # use gt concepts for cap gen
                 encoded_features = torch.cat((encoded_features, self.embed(torch.reshape(gt_concepts, (concept_seq.shape[0], self.seq_per_img, -1))[:, 0])), dim=1)
+                if self.gt_concepts_while_testing:
+                    concept_seq = torch.reshape(gt_concepts, (concept_seq.shape[0], self.seq_per_img, -1))[:, 0]
             else:  # dont use gt for cap gen
                 encoded_features = torch.cat((encoded_features, self.embed(concept_seq)), dim=1)
         #### END GROUNDER ####
