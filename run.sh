@@ -46,9 +46,15 @@ python train.py --dataset msvd --grounder_type ioc --captioner_type transformer 
 python train.py --dataset msrvtt --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 
 # Add grounding with iterative transformer and default svos ordered
-python train.py --dataset msvd --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc --batch_size 8 --test_batch_size 8 --max_epochs 100 --grounder_size 2048 --grounder_heads 8
-python train.py --dataset msrvtt --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --grounder_size 2048 --grounder_heads 8
+python train.py --dataset msvd --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc_svo --batch_size 8 --test_batch_size 8 --max_epochs 100 --grounder_size 2048 --grounder_heads 8
+python train.py --dataset msrvtt --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc_svo  --batch_size 8 --test_batch_size 4 --max_epochs 200 --grounder_size 2048 --grounder_heads 8
 
-python train.py --dataset msvd --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8
-python train.py --dataset msrvtt --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8
+python train.py --dataset msvd --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc_svo --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8
+python train.py --dataset msrvtt --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc_svo  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8
 
+# Add grounding with multi stage (but not conditioned on past concepts) softmax with svos
+python train.py --dataset msvd --grounder_type nioc --captioner_type lstm --model_id lstm_1_nioc_svo --batch_size 8 --test_batch_size 8 --max_epochs 100
+python train.py --dataset msrvtt --grounder_type nioc --captioner_type lstm --model_id lstm_1_nioc_svo  --batch_size 8 --test_batch_size 4 --max_epochs 200
+
+python train.py --dataset msvd --grounder_type nioc --captioner_type transformer --model_id transformer_1_nioc_svo --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048  --captioner_heads 8
+python train.py --dataset msrvtt --grounder_type nioc --captioner_type transformer --model_id transformer_1_nioc_svo  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048  --captioner_heads 8
