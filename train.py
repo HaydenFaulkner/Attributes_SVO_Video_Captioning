@@ -440,7 +440,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
                 gt_concept_seq_words = [g.split(' ') for g in gt_concept_seq_words]
                 for bi in range(len(gt_concept_seq_words)):
                     pr_words = list()
-                    for pr in concept_seq_words[bi]:
+                    for pr in concept_seq_words[bi].split(' '):
                         pr_word = pr.split(' ')[0]
                         pr_words.append(pr_word)
                         if pr_word not in prec_recs:
