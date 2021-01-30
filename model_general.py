@@ -360,15 +360,14 @@ class GeneralModel(nn.Module):
             out = self.concept_decoder(concept_embeddings, feats, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)   # out is target shp
             out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
 
+            concept_idxs = F.softmax(self.logit(out), dim=-1)[:, :-1].argmax(-1)
             concept_probs = F.log_softmax(self.logit(out), dim=-1)[:, :-1]
-            concept_probs_b = F.softmax(self.logit(out), dim=-1)[:, :-1]
-            concept_probs_c = torch.max(concept_probs_b, dim=1)[0]
-            concept_idxs = concept_probs_b.argmax(-1)
+            concept_probs_sigmoid = F.sigmoid(self.logit(out))[:, :-1]
 
         else:  # auto-regressive prediction at inference
 
             concept_probs = torch.zeros((feats.size(0), self.num_concepts, self.vocab_size)).cuda()
-            concept_probs_b = torch.zeros((feats.size(0), self.num_concepts, self.vocab_size)).cuda()
+            concept_probs_sigmoid = torch.zeros((feats.size(0), self.num_concepts, self.vocab_size)).cuda()
             concept_idxs = torch.zeros((feats.size(0), self.num_concepts), dtype=torch.long).cuda()
             concept_idxs = F.pad(concept_idxs, (1, 0, 0, 0), "constant", self.bos_index)
 
@@ -382,18 +381,14 @@ class GeneralModel(nn.Module):
                 decoder_output = self.concept_decoder(decoder_input, feats, tgt_mask=tgt_mask)
 
                 concept_idxs[:, i] = F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1)
-                concept_probs_b[:, i - 1] = F.softmax(self.logit(decoder_output[-1]), dim=-1)
                 concept_probs[:, i - 1] = F.log_softmax(self.logit(decoder_output[-1]), dim=-1)
+                concept_probs_sigmoid[:, i - 1] = F.sigmoid(self.logit(decoder_output[-1]))
 
             concept_idxs = concept_idxs[:, 1:]  # remove '<bos>'
 
-
         if self.grounder_type in ['iuc']:
-            raise NotImplementedError  # concept_probs_c dont work
-            # concept_probs = torch.max(concept_probs_b, dim=1)[0]  # use max pred confs
-            # concept_probs = torch.clamp(
-            #     torch.sum(torch.nn.functional.one_hot(concept_idxs, num_classes=self.vocab_size), axis=1), 0, 1).type(
-            #     torch.FloatTensor).cuda()  # use hard pred confs
+            concept_probs = torch.max(concept_probs_sigmoid, dim=1)[0]  # use max pred confs
+            concept_probs = concept_probs.unsqueeze(1).repeat(1, self.num_concepts, 1)  # repeat so it is the right shape
 
         return concept_probs, concept_idxs
 
