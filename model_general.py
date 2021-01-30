@@ -258,10 +258,11 @@ class GeneralModel(nn.Module):
             self.feat_pool_q = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
             self.feat_pool_k = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
             self.feat_pool_v = nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm))
+
             self.encoders = list()
             for _ in range(self.num_concepts):
                 self.encoders.append(nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm)))
-
+            self.encoders = nn.ModuleList(self.encoders).cuda()
         elif self.grounder_type in ['iuc', 'ioc']:
             self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.num_concepts+1)
             # iterative
@@ -354,29 +355,47 @@ class GeneralModel(nn.Module):
         concept_probs = concept_probs.unsqueeze(1).repeat(1, self.num_concepts, 1)  # repeat so it is the right shape
         return concept_probs, concept_idxs
 
-    def non_iterative_grounder_multistage(self, feats):
-        # embed the features for grounding attention
-        q_feats = self.feat_pool_q(feats[:, 0:1])  # use img feat as query
-        k_feats = self.feat_pool_k(feats)
-        v_feats = self.feat_pool_v(feats)
+    def non_iterative_grounder_multistage(self, feats, gt_concepts, self_att=True):
+        if self_att:
+            # embed the features for grounding attention
+            q_feats = self.feat_pool_q(feats)
+            k_feats = self.feat_pool_k(feats)
+            v_feats = self.feat_pool_v(feats)
 
-        # use the query and key encodings to calculate self-attention weights
-        att = torch.matmul(q_feats, k_feats.transpose(1, 2)) / math.sqrt(q_feats.shape[-1])
-        att = F.softmax(att, dim=-1)
+            # use the query and key encodings to calculate self-attention weights
+            att = torch.matmul(q_feats, k_feats.transpose(1, 2)) / math.sqrt(q_feats.shape[-1])
+            att = F.softmax(att, dim=-1)
 
-        # # record the attention weights, used for visualisation purposes
-        # att_rec = att.data.cpu().numpy()
-        # self.attention_record = [np.mean(att_rec[i], axis=0) for i in range(len(att_rec))]
+            # # record the attention weights, used for visualisation purposes
+            # att_rec = att.data.cpu().numpy()
+            # self.attention_record = [np.mean(att_rec[i], axis=0) for i in range(len(att_rec))]
 
-        # apply the attention
-        feats_ = torch.matmul(att, v_feats)
+            # apply the attention
+            feats = torch.matmul(att, v_feats)
 
-        pred_concepts = list()
+        gt_concepts = torch.reshape(gt_concepts, (feats.shape[0], self.seq_per_img, -1))[:, 0]
+        pred_outs = list()
+        pred_its = list()
+        query = feats[:, 0:1]  # initial attention query is image feature
+        for i in range(self.num_concepts):
+            att = torch.matmul(query, feats.transpose(1, 2)) / math.sqrt(query.shape[-1])
+            att = F.softmax(att, -1)
+            att_feat = torch.matmul(att, feats)
+            hidden = self.encoders[i](att_feat)
 
-        for _ in range(self.num_concepts):
-            pass
+            # encode to logits and apply softmax to get word probabilities
+            out = F.log_softmax(self.logit(hidden), dim=-1)
+            pred_outs.append(out)
+            # argmax the subject
+            it = F.softmax(self.logit(hidden), dim=-1).argmax(-1)
+            pred_its.append(it)
 
-        return NotImplementedError
+            if self.training and gt_concepts is not None:
+                query = self.embed(gt_concepts[:, i]).unsqueeze(1)
+            else:
+                query = self.embed(it.squeeze(1)).unsqueeze(1)
+
+        return torch.cat(pred_outs, dim=1), torch.cat(pred_its, dim=1)
 
     def iterative_grounder(self, feats, gt_concepts):
 
@@ -560,11 +579,13 @@ class GeneralModel(nn.Module):
         #### GROUNDER ####
         concept_probs = None
         concept_seq = None
-        if self.grounder_type in ['niuc', 'iuc', 'ioc']:
+        if self.grounder_type in ['niuc', 'nioc', 'iuc', 'ioc']:
             if self.grounder_type in ['niuc']:
                 concept_probs, concept_seq = self.non_iterative_grounder(encoded_features)
+            elif self.grounder_type in ['nioc']:
+                concept_probs, concept_seq = self.non_iterative_grounder_multistage(encoded_features, gt_concepts)
             elif self.grounder_type in ['iuc', 'ioc']:
-                concept_probs, concept_seq = self.iterative_grounder(encoded_features, gt_concepts=gt_concepts)
+                concept_probs, concept_seq = self.iterative_grounder(encoded_features, gt_concepts)
             else:
                 raise NotImplementedError
 

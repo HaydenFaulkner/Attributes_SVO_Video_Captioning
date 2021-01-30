@@ -640,29 +640,28 @@ if __name__ == '__main__':
     opt.history_file = opt.model_file.replace('.pth', '_history.json', 1)
 
     logger.info('Building model...')
-    model = GeneralModel(opt)
-    # if opt.captioner_type in ['lstm', 'gru', 'rnn']:
-    #     if opt.filter_type in ['none', 'None']:
-    #         model = RNN_DEC(opt)
-    #     elif opt.filter_type in ['svo_original']:
-    #         model = SVORNN(opt)
-    #     elif opt.filter_type in ['svo_transformer']:
-    #         model = CONRNN(opt)
-    #     else:
-    #         raise NotImplementedError
-    # elif opt.captioner_type in ['transformer']:
-    #     if opt.filter_type in ['none', 'None', 'niuc', 'iuc', 'ioc']:
-    #         model = TRF_DEC(opt)
-    #     elif opt.filter_type in ['svo_transformer']:
-    #         model = CONTRA(opt)
-    #     elif opt.filter_type in ['svo_transformer_2']:
-    #         model = CONTRAB(opt)
-    #     elif opt.filter_type in ['visual_encoder_only']:
-    #         model = SINTRA(opt)
-    #     else:
-    #         raise NotImplementedError
-    # else:
-    #     raise NotImplementedError
+    if opt.captioner_type in ['lstm', 'gru', 'rnn']:
+        if opt.filter_type in ['none', 'None']:
+            model = RNN_DEC(opt)
+        elif opt.filter_type in ['svo_original']:
+            model = SVORNN(opt)
+        elif opt.filter_type in ['svo_transformer']:
+            model = CONRNN(opt)
+        else:
+            raise NotImplementedError
+    elif opt.captioner_type in ['transformer']:
+        if opt.filter_type in ['none', 'None', 'niuc', 'iuc', 'ioc']:
+            model = TRF_DEC(opt)
+        elif opt.filter_type in ['svo_transformer']:
+            model = CONTRA(opt)
+        elif opt.filter_type in ['svo_transformer_2']:
+            model = CONTRAB(opt)
+        elif opt.filter_type in ['visual_encoder_only']:
+            model = SINTRA(opt)
+        else:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
 
     xe_criterion = CrossEntropyCriterion()
     rl_criterion = RewardCriterion()

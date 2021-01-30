@@ -124,6 +124,16 @@ def parse_opts():
         default=64,
         help='what is the batch size in number of images per batch? (there will be x seq_per_img sentences)')
     parser.add_argument(
+        '--train_seq_per_img',
+        type=int,
+        default=20,
+        help='number of captions to sample for each image during training. Done for efficiency since CNN forward pass is expensive.')
+    parser.add_argument(
+        '--test_seq_per_img',
+        type=int,
+        default=20,
+        help='number of captions to sample for each image during training. Done for efficiency since CNN forward pass is expensive.')
+    parser.add_argument(
         '--train_captions_per_img',
         type=int,
         default=20,
@@ -205,6 +215,7 @@ def parse_opts():
         choices=[
             'none',
             'niuc',
+            'nioc',
             'iuc',
             'ioc'],
         help='type of the grounding prior to captioning')

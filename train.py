@@ -101,7 +101,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         opt.use_cst_after = infos['epoch']
         train_loader.set_current_epoch(infos['epoch'])
 
-    if opt.grounder_type in ['niuc', 'iuc', 'ioc']:
+    if opt.grounder_type in ['niuc', 'nioc', 'iuc', 'ioc']:
         # get class weights
         one_hot_sums = None
         totes = 0
@@ -249,22 +249,19 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
             if opt.grounder_type in ['None', 'none']:
                 loss = loss_cap
             else:
-                if opt.grounder_type in ['niuc', 'iuc']:
+                if opt.grounder_type in ['niuc', 'iuc']:  # unordered
                     svo_criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
                     concepts_one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(labels_svo, num_classes=model.vocab_size), axis=1),  0, 1)
                     loss_svo = svo_criterion(pred_svo[:, 0], concepts_one_hot.type(torch.FloatTensor).cuda())  # pred_svo[: 0] undoes the repeat at the end of non_iterative_grounder()
-                elif opt.svo_length == 3:
-                    loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
                 else:
-                    # loss_ce = nn.CrossEntropyLoss()
-                    # output = loss_ce(pred_svo, labels_svo)
-                    loss_svo = criterion(pred_svo, labels_svo, masks_svo)
+                    loss_svo = criterion(pred_svo, labels_svo, torch.ones(labels.shape).cuda())
+                    # loss_svo = criterion(pred_svo, labels_svo, masks_svo)
 
                 if random.random() < 0.01:  # compare the svos during training
                     print('---------------------')
                     print(utils.decode_sequence(opt.vocab, pred.argmax(-1)))
                     print(utils.decode_sequence(opt.vocab, labels_svo)[0])
-                    print(utils.decode_sequence(opt.vocab, svo_it)[:5])
+                    print(utils.decode_sequence(opt.vocab, svo_it)[0])
                 loss = loss_cap + (opt.labda/10.0)*loss_svo
 
         loss.backward()
@@ -433,7 +430,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
             concept_seq_words = utils.decode_sequence(opt.vocab, concept_seq)
 
             # Calculate TP,FP,FN for precision and recall calcs
-            if opt.grounder_type in ['niuc', 'iuc', 'ioc']:
+            if opt.grounder_type in ['niuc', 'nioc', 'iuc', 'ioc']:
 
                 gt_concept_seq_words = utils.decode_sequence(opt.vocab, torch.reshape(labels_svo, (len(concept_seq_words), opt.test_seq_per_img, -1))[:, 0])
                 gt_concept_seq_words = [g.split(' ') for g in gt_concept_seq_words]
@@ -731,7 +728,7 @@ if __name__ == '__main__':
         test(model, xe_criterion, test_loader, opt)
         logger.info('Testing time: %s', datetime.now() - start)
 
-        if opt.grounder_type in ['niuc', 'iuc', 'ioc']:
+        if opt.grounder_type in ['niuc', 'nioc', 'iuc', 'ioc']:
             opt.result_file = os.path.join(opt.results_dir, opt.model_id, opt.dataset + '_gtconcepts.json')
             model.gt_concepts_while_testing = 1
             logger.info('Start testing with gt concepts for upper bound...')
