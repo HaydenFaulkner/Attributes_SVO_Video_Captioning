@@ -19,11 +19,10 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_concepts import SVORNN, CONRNN, CONTRA, SINTRA, CONTRAB, RNN_DEC, TRF_DEC
 from model_general import GeneralModel
 
 import utils
-import opts_svo as opts
+import opts
 
 import sys
 
@@ -101,7 +100,7 @@ def train(model, criterion, optimizer, train_loader, val_loader, opt, rl_criteri
         opt.use_cst_after = infos['epoch']
         train_loader.set_current_epoch(infos['epoch'])
 
-    if opt.grounder_type in ['niuc', 'nioc', 'iuc', 'ioc']:
+    if opt.grounder_type in ['niuc', 'iuc']:
         # get class weights
         one_hot_sums = None
         totes = 0
