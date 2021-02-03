@@ -406,7 +406,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
                 masks = masks.cuda()
                 labels_svo = labels_svo.cuda()
 
-        if loader.has_label:
+        if loader.has_label and model.gt_concepts_while_testing == 0:
             pred, gt_seq, gt_logseq, _, _, _ = model(feats, bfeats, labels, labels_svo)
             # memReport()
             if opt.output_logp == 1:
@@ -426,16 +426,23 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
 
         if concept_seq is not None:
 
+            # if type == 'test':
+            #     if concept_seq.shape[0] != 136:
+            #         print()
+            labels_svo = torch.reshape(labels_svo, (-1, opt.test_seq_per_img, opt.num_concepts))[:, 0]
+                # concept_seq = torch.reshape(concept_seq, (-1, opt.test_seq_per_img, opt.num_concepts))[:, 0]
+
             concept_seq_words = utils.decode_sequence(opt.vocab, concept_seq)
 
             # Calculate TP,FP,FN for precision and recall calcs
             if opt.grounder_type in ['niuc', 'nioc', 'iuc', 'ioc']:
-
-                gt_concept_seq_words = utils.decode_sequence(opt.vocab, torch.reshape(labels_svo, (len(concept_seq_words), opt.test_seq_per_img, -1))[:, 0])
+                gt_concept_seq_words = utils.decode_sequence(opt.vocab, labels_svo)
                 gt_concept_seq_words = [g.split(' ') for g in gt_concept_seq_words]
                 for bi in range(len(gt_concept_seq_words)):
                     pr_words = list()
-                    for pr in concept_seq_words[bi].split(' '):
+                    repeat = int(len(gt_concept_seq_words)/len(concept_seq_words))
+
+                    for pr in concept_seq_words[int(math.floor(float(bi)/repeat))].split(' '):
                         pr_word = pr.split(' ')[0]
                         pr_words.append(pr_word)
                         if pr_word not in prec_recs:
@@ -449,14 +456,16 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
                             prec_recs[gt] = [0, 0, 0]
                         if gt not in pr_words:
                             prec_recs[gt][2] += 1  # FN
-
-            for jj, (sent, sent_svo) in enumerate(zip(sents, concept_seq_words)):
-                if opt.output_logp == 1:
-                    entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'avglogp': test_avglogp[jj], 'box_att': model.attention_record[jj].tolist()}
-                else:
-                    entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
-                predictions.append(entry)
-                logger.debug('[%d] video %s: %s pr(%s) gt(%s)' % (jj, entry['image_id'], entry['caption'], entry['svo'], gt_concept_seq_words[jj]))
+            try:
+                for jj, (sent, sent_svo) in enumerate(zip(sents, concept_seq_words)):
+                    if opt.output_logp == 1:
+                        entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo, 'avglogp': test_avglogp[jj], 'box_att': model.attention_record[jj].tolist()}
+                    else:
+                        entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
+                    predictions.append(entry)
+                    logger.debug('[%d] video %s: %s pr(%s) gt(%s)' % (jj, entry['image_id'], entry['caption'], entry['svo'], gt_concept_seq_words[jj]))
+            except IndexError:
+                print()
         else:
 
             for jj, sent in enumerate(sents):

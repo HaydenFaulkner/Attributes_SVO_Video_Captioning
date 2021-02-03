@@ -591,12 +591,16 @@ class GeneralModel(nn.Module):
             else:
                 raise NotImplementedError
 
-            if gt_concepts is not None and ((self.gt_concepts_while_training and self.training) or self.gt_concepts_while_testing):  # use gt concepts for cap gen
-                encoded_features = torch.cat((encoded_features, self.embed(gt_concepts)), dim=1)
-                if self.gt_concepts_while_testing:
-                    concept_seq = torch.reshape(gt_concepts, (feats[0].shape[0], self.seq_per_img, -1))[:, 0]
-            else:  # dont use gt for cap gen
-                encoded_features = torch.cat((encoded_features, self.embed(concept_seq)), dim=1)
+            try:
+                if gt_concepts is not None and ((self.gt_concepts_while_training and self.training) or self.gt_concepts_while_testing):  # use gt concepts for cap gen
+                    if self.gt_concepts_while_testing:
+                        gt_concepts = torch.reshape(gt_concepts, (feats[0].shape[0], self.seq_per_img, -1))[:, 0]
+                        concept_seq = gt_concepts
+                    encoded_features = torch.cat((encoded_features, self.embed(gt_concepts)), dim=1)
+                else:  # dont use gt for cap gen
+                    encoded_features = torch.cat((encoded_features, self.embed(concept_seq)), dim=1)
+            except RuntimeError:
+                print()
         #### END GROUNDER ####
 
         return encoded_features, concept_probs, concept_seq
