@@ -399,28 +399,28 @@ class GeneralModel(nn.Module):
 
     def iterative_grounder(self, feats, gt_concepts):
 
+        feats = feats.permute(1, 0, 2)
         if self.training and gt_concepts is not None:
-            gt_concepts = torch.reshape(gt_concepts, (feats.shape[0], self.seq_per_img, -1))[:, 0]
             gt_concepts = F.pad(gt_concepts, (1, 0, 0, 0), "constant", self.bos_index)
-            # gt_concepts = gt_concepts[:, :-1]
+            gt_concepts = gt_concepts[:, :-1]
             concept_embeddings = self.embed(gt_concepts)
-            concept_embeddings = concept_embeddings.permute(1, 0, 2) # change to (time, batch, channel)
-            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.num_concepts+1).cuda()  # +1 for <bos> token
+            concept_embeddings = concept_embeddings.permute(1, 0, 2)  # change to (time, batch, channel)
+            tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.num_concepts).cuda()
             tgt_key_padding_mask = (gt_concepts == 0)  # create padding mask
             if self.concept_pos_encoder is not None:
                 concept_embeddings = self.concept_pos_encoder(concept_embeddings)
             out = self.concept_decoder(concept_embeddings, feats, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)   # out is target shp
             out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
 
-            concept_idxs = F.softmax(self.logit(out), dim=-1)[:, :-1].argmax(-1)
-            concept_probs = F.log_softmax(self.logit(out), dim=-1)[:, :-1]
-            concept_probs_sigmoid = F.sigmoid(self.logit(out))[:, :-1]
+            concept_idxs = F.softmax(self.logit(out), dim=-1).argmax(-1)
+            concept_probs = F.log_softmax(self.logit(out), dim=-1)
+            concept_probs_sigmoid = F.sigmoid(self.logit(out))
 
         else:  # auto-regressive prediction at inference
 
-            concept_probs = torch.zeros((feats.size(0), self.num_concepts, self.vocab_size)).cuda()
-            concept_probs_sigmoid = torch.zeros((feats.size(0), self.num_concepts, self.vocab_size)).cuda()
-            concept_idxs = torch.zeros((feats.size(0), self.num_concepts), dtype=torch.long).cuda()
+            concept_probs = torch.zeros((feats.size(1), self.num_concepts, self.vocab_size)).cuda()
+            concept_probs_sigmoid = torch.zeros((feats.size(1), self.num_concepts, self.vocab_size)).cuda()
+            concept_idxs = torch.zeros((feats.size(1), self.num_concepts), dtype=torch.long).cuda()
             concept_idxs = F.pad(concept_idxs, (1, 0, 0, 0), "constant", self.bos_index)
 
             for i in range(1, self.num_concepts+1):
@@ -549,7 +549,7 @@ class GeneralModel(nn.Module):
         # which are different for different batch)
         return torch.cat([_.unsqueeze(1) for _ in outputs], 1), torch.cat([_.unsqueeze(1) for _ in sample_seq], 1)
 
-    def feature_filtering(self, feats, bfeats, gt_concepts=None):
+    def feature_filtering(self, feats, bfeats, gt_concepts=None, expand=False):
         feats_enc = list()
         for i, feat in enumerate(feats):
             feats_enc.append(self.feat_enc[i](feat))
@@ -580,6 +580,8 @@ class GeneralModel(nn.Module):
         concept_probs = None
         concept_seq = None
         if self.grounder_type in ['niuc', 'nioc', 'iuc', 'ioc']:
+            if expand:
+                encoded_features = self.feat_expander(encoded_features)
             if self.grounder_type in ['niuc']:
                 concept_probs, concept_seq = self.non_iterative_grounder(encoded_features)
             elif self.grounder_type in ['nioc']:
@@ -590,9 +592,9 @@ class GeneralModel(nn.Module):
                 raise NotImplementedError
 
             if gt_concepts is not None and ((self.gt_concepts_while_training and self.training) or self.gt_concepts_while_testing):  # use gt concepts for cap gen
-                encoded_features = torch.cat((encoded_features, self.embed(torch.reshape(gt_concepts, (concept_seq.shape[0], self.seq_per_img, -1))[:, 0])), dim=1)
+                encoded_features = torch.cat((encoded_features, self.embed(gt_concepts)), dim=1)
                 if self.gt_concepts_while_testing:
-                    concept_seq = torch.reshape(gt_concepts, (concept_seq.shape[0], self.seq_per_img, -1))[:, 0]
+                    concept_seq = torch.reshape(gt_concepts, (feats[0].shape[0], self.seq_per_img, -1))[:, 0]
             else:  # dont use gt for cap gen
                 encoded_features = torch.cat((encoded_features, self.embed(concept_seq)), dim=1)
         #### END GROUNDER ####
@@ -601,9 +603,7 @@ class GeneralModel(nn.Module):
 
     def forward(self, feats, bfeats, gt_caption, gt_concepts):
 
-        combined_enc, concept_probs, concept_seq = self.feature_filtering(feats, bfeats, gt_concepts)
-
-        encoded_features = self.feat_expander(combined_enc)
+        encoded_features, concept_probs, concept_seq = self.feature_filtering(feats, bfeats, gt_concepts, expand=True)
 
         if self.captioner_type in ['transformer']:  # Captioner - Transformer
             caption_probs, caption_seq = self.captioner_transformer(encoded_features, gt_caption)
@@ -613,9 +613,6 @@ class GeneralModel(nn.Module):
         # output size is: B x L x V (where L is truncated lengths
         # which are different for different batch)
         if concept_probs is not None:
-            concept_probs = self.feat_expander(concept_probs)
-            concept_seq = self.feat_expander(concept_seq)
-
             return caption_probs, caption_seq, caption_probs.gather(2, caption_seq.unsqueeze(2)).squeeze(2), \
                    concept_probs, concept_seq, concept_probs.gather(2, concept_seq.unsqueeze(2)).squeeze(2)
         else:
