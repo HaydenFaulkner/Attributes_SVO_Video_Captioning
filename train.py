@@ -578,7 +578,7 @@ if __name__ == '__main__':
 
         opt.train_seq_per_img = 17
         opt.test_seq_per_img = opt.train_seq_per_img
-    elif opt.dataset == 'msrvtvv':
+    elif opt.dataset == 'msrvtt':
         opt.train_feat_h5 = [os.path.join('datasets', opt.dataset, 'features', opt.dataset+'_train_irv2_mp1.h5'),
                              os.path.join('datasets', opt.dataset, 'features', opt.dataset+'_train_c3d_mp1.h5'),
                              os.path.join('datasets', opt.dataset, 'features', opt.dataset+'_train_category_mp1.h5')]
