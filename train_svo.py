@@ -434,31 +434,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
 
         if seq_svo is not None:
 
-            if opt.filter_type in ['niuc', 'iuc', 'ioc']:
-                if opt.filter_type in ['ioc']:
-                    sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
-                else:
-                    sents_svo = utils.decode_concepts_sequence(opt.vocab, seq_svo)
-                gt_sents_svo = utils.decode_sequence(opt.vocab, torch.reshape(labels_svo, (len(sents_svo), opt.test_seq_per_img, -1))[:, 0])
-                gt_sents_svo = [g.split(' ') for g in gt_sents_svo]
-                for bi in range(len(gt_sents_svo)):
-                    pr_words = list()
-                    for pr in sents_svo[bi]:
-                        pr_word = pr.split(' ')[0]
-                        pr_words.append(pr_word)
-                        if pr_word not in prec_recs:
-                            prec_recs[pr_word] = [0, 0, 0]
-                        if pr_word in gt_sents_svo[bi]:
-                            prec_recs[pr_word][0] += 1  # TP
-                        else:
-                            prec_recs[pr_word][1] += 1  # FP
-                    for gt in gt_sents_svo[bi]:
-                        if gt not in prec_recs:
-                            prec_recs[gt] = [0, 0, 0]
-                        if gt not in pr_words:
-                            prec_recs[gt][2] += 1  # FN
-
-            elif opt.filter_type in ['svo_transformer_2']:
+            if opt.filter_type in ['svo_transformer_2']:
                 sents_svo = utils.decode_sequence_new_svo(opt.vocab, seq_svo)
             else:
                 sents_svo = utils.decode_sequence(opt.vocab, seq_svo)
@@ -469,7 +445,7 @@ def validate(model, criterion, loader, opt, max_iters=None, type='val'):
                 else:
                     entry = {'image_id': data['ids'][jj], 'caption': sent, 'svo': sent_svo}#, 'box_att': model.attention_record[jj].tolist()}  # todo removed fot transformer model
                 predictions.append(entry)
-                logger.debug('[%d] video %s: %s pr(%s) gt(%s)' % (jj, entry['image_id'], entry['caption'], entry['svo'], gt_sents_svo[jj]))
+                logger.debug('[%d] video %s: %s pr(%s)' % (jj, entry['image_id'], entry['caption'], entry['svo']))
         else:
 
             for jj, sent in enumerate(sents):
