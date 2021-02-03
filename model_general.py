@@ -264,7 +264,7 @@ class GeneralModel(nn.Module):
                 self.encoders.append(nn.Sequential(nn.Linear(self.visual_encoding_size, self.visual_encoding_size), nn.ReLU(), nn.Dropout(self.drop_prob_lm)))
             self.encoders = nn.ModuleList(self.encoders).cuda()
         elif self.grounder_type in ['iuc', 'ioc']:
-            self.svo_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.num_concepts+1)
+            self.concept_pos_encoder = PositionalEncoding(self.textual_encoding_size, dropout=self.drop_prob_lm, max_len=self.num_concepts+1)
             # iterative
             concept_decoder_layer = nn.TransformerDecoderLayer(d_model=self.visual_encoding_size, nhead=self.grounder_heads,
                                                                dim_feedforward=self.grounder_size, dropout=self.drop_prob_lm)
@@ -407,8 +407,8 @@ class GeneralModel(nn.Module):
             concept_embeddings = concept_embeddings.permute(1, 0, 2) # change to (time, batch, channel)
             tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, self.num_concepts+1).cuda()  # +1 for <bos> token
             tgt_key_padding_mask = (gt_concepts == 0)  # create padding mask
-            if self.svo_pos_encoder is not None:
-                concept_embeddings = self.svo_pos_encoder(concept_embeddings)
+            if self.concept_pos_encoder is not None:
+                concept_embeddings = self.concept_pos_encoder(concept_embeddings)
             out = self.concept_decoder(concept_embeddings, feats, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_key_padding_mask)   # out is target shp
             out = out.permute(1, 0, 2)  # change back to (batch, concepts, channels)
 
@@ -428,8 +428,8 @@ class GeneralModel(nn.Module):
 
                 tgt_mask = nn.Transformer.generate_square_subsequent_mask(None, i).cuda()
                 decoder_input = decoder_input.permute(1, 0, 2)
-                if self.svo_pos_encoder is not None:
-                    decoder_input = self.svo_pos_encoder(decoder_input)  # add positional encoding
+                if self.concept_pos_encoder is not None:
+                    decoder_input = self.concept_pos_encoder(decoder_input)  # add positional encoding
                 decoder_output = self.concept_decoder(decoder_input, feats, tgt_mask=tgt_mask)
 
                 concept_idxs[:, i] = F.softmax(self.logit(decoder_output[-1]), dim=-1).argmax(-1)
