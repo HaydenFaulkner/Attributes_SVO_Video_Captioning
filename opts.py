@@ -194,33 +194,43 @@ def parse_opts():
             'visual_encoder_only'],
         help='type of the filtering prior to captioning')
     parser.add_argument(
-        '--filter_encoder_size',
+        '--input_encoder_size',
         type=int,
         default=512,
         help='size of the input in number of hidden nodes in each encoder layer')
     parser.add_argument(
-        '--filter_encoder_layers',
+        '--input_encoder_layers',
         type=int,
         default=0,
         help='number of layers in the input encoder')
     parser.add_argument(
-        '--filter_encoder_heads',
+        '--input_encoder_heads',
         type=int,
         default=1,
         help='number of heads in the input encoder')
-
     parser.add_argument(
-        '--filter_decoder_size',
+        '--grounder_type',
+        type=str,
+        default='none',
+        choices=[
+            'none',
+            'niuc',
+            'nioc',
+            'iuc',
+            'ioc'],
+        help='type of the grounding prior to captioning')
+    parser.add_argument(
+        '--grounder_size',
         type=int,
         default=512,
         help='size of the grounder in number of hidden nodes in each grounder layer')
     parser.add_argument(
-        '--filter_decoder_layers',
+        '--grounder_layers',
         type=int,
         default=1,
         help='number of layers in the grounder')
     parser.add_argument(
-        '--filter_decoder_heads',
+        '--grounder_heads',
         type=int,
         default=1,
         help='number of heads in the grounder decoder')
