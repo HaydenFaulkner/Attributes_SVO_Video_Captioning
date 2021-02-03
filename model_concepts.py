@@ -2477,13 +2477,12 @@ class CONTRA(nn.Module):
         encoded_boxes = self.box_encoder(bfeats)
 
         # concat the box features to the global features
-        visual_features = torch.cat(encoded_global_feats + [encoded_boxes], dim=-2)
+        encoded_features = torch.cat(encoded_global_feats + [encoded_boxes], dim=-2)
 
         #### ENCODER ####
-        encoded_features = self.concept_encoder(visual_features.permute(1, 0, 2))  # change to (time, batch, channel)
+        encoded_features = self.concept_encoder(encoded_features.permute(1, 0, 2)).permute(1, 0, 2)  # change to (time, batch, channel)
         if expand_feat:
-            encoded_features = self.feat_expander(encoded_features.permute(1, 0, 2))  # change to (batch, time, channel)
-            encoded_features = encoded_features.permute(1, 0, 2)  # change to (time, batch, channel)
+            encoded_features = self.feat_expander(encoded_features).permute(1, 0, 2)  # change to (batch, time, channel)
         #### END ENCODER ####
 
         #### DECODER ####
@@ -2564,7 +2563,7 @@ class CONTRA(nn.Module):
 
         # get the svo features and vocab indexs
         svo_out, svo_it = self.concept_generator_cap(gfeats, bfeats, pos)
-        conc_emb, conc_conf = self.concept_generator(gfeats, bfeats)
+        # conc_emb, conc_conf = self.concept_generator(gfeats, bfeats)
         one_hot = torch.clamp(torch.sum(torch.nn.functional.one_hot(pos, num_classes=self.vocab_size), axis=1), 0, 1)
         one_hot[:, 0] = 0  # make the padding index 0
 
