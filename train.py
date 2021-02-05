@@ -19,7 +19,7 @@ import numpy as np
 
 from dataloader_svo import DataLoader
 from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_general import GeneralModel
+from model_general import GeneralModel, GeneralModelDecoupled
 
 import utils
 import opts
@@ -682,7 +682,10 @@ if __name__ == '__main__':
     opt.bfeat_dims = train_loader.get_bfeat_dims()
 
     logger.info('Building model...')
-    model = GeneralModel(opt)
+    if opt.decouple:
+        model = GeneralModelDecoupled(opt)
+    else:
+        model = GeneralModel(opt)
     # if opt.captioner_type in ['lstm', 'gru', 'rnn']:
     #     if opt.filter_type in ['none', 'None']:
     #         model = RNN_DEC(opt)

@@ -404,6 +404,13 @@ def parse_opts():
         help='Type of models')
 
     parser.add_argument(
+        '--decouple',
+        type=int,
+        default=0,
+        choices=[0,1],
+        help='decouple the concept and visual feats?')
+
+    parser.add_argument(
         '--pass_all_svo',
         type=int,
         default=0,
