@@ -20,7 +20,7 @@ sp = Speller()
 ### load gt-related files 
 file_path = './results'
 num = 2990  # samples in total
-gt_file_path = 'output/metadata'
+gt_file_path = os.path.join('datasets', 'msrvtt', 'metadata')
 gt_test = 'msrvtt_test_proprocessedtokens.json'
 gt_json = json.load(open(os.path.join(gt_file_path, gt_test), 'r'))
 
@@ -67,7 +67,7 @@ for json_file in json_files:
 	res_ov = res_init()
 	ov_json = json.load(open(os.path.join(file_path, json_file), 'r'))
 
-	for cnt, (gt_item, ov_item) in enumerate(zip(gt_json, ov_json)):
+	for cnt, (gt_item, ov_item) in enumerate(zip(gt_json, ov_json['predictions'])):
 		assert gt_item['video_id'] == ov_item['image_id']
 		svos = gt_item['svos']
 		svos = [x.split(' ') for x in svos]
@@ -103,3 +103,4 @@ for json_file in json_files:
 			res_ov['dist_verb'][cnt] = (np.sqrt(np.sum((gt_vs_embs-ov_svo_v_emb)*(gt_vs_embs-ov_svo_v_emb), 1).min()))/300.
 
 	res_dicts.append(res_ov)
+print()
