@@ -31,7 +31,7 @@ python train.py --dataset msvd
                 --max_epochs 100
 ```
 
-To train on MSRTVTT:
+To train on MSR-VTT:
 ```bash
 python train.py --dataset msrvtt 
                 --captioner_type lstm 
@@ -40,6 +40,25 @@ python train.py --dataset msrvtt
                 --test_batch_size 4 
                 --max_epochs 200
 ```
+
+## Test / Evaluate
+Testing occurs automatically at the end of training, if you would like to run separately use [`evaluate.py`](evaluate.py)
+To evaluate on MSVD:
+```bash
+python evaluate.py --dataset msvd 
+                   --captioner_type lstm 
+                   --model_id lstm_1 
+                   --test_batch_size 8 
+```
+
+To evaluate on MSR-VTT:
+```bash
+python evaluate.py --dataset msrvtt 
+                   --captioner_type lstm 
+                   --model_id lstm_1  
+                   --test_batch_size 4 
+```
+
 
 
 ### Acknowledgements
