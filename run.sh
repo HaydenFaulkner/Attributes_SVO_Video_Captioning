@@ -24,6 +24,13 @@ python train.py --dataset msrvtt --grounder_type niuc --captioner_type lstm --mo
 python train.py --dataset msvd --grounder_type niuc --captioner_type transformer --model_id transformer_1_niuc --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048  --captioner_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 python train.py --dataset msrvtt --grounder_type niuc --captioner_type transformer --model_id transformer_1_niuc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048  --captioner_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts
 
+# with decoupling
+python train.py --dataset msvd --grounder_type niuc --captioner_type lstm --model_id lstm_1_niuc_dec --batch_size 8 --test_batch_size 8 --max_epochs 100 --num_concepts 5 --concepts_h5 sl_top_concepts --decouple 1
+python train.py --dataset msrvtt --grounder_type niuc --captioner_type lstm --model_id lstm_1_niuc_dec  --batch_size 8 --test_batch_size 4 --max_epochs 200 --num_concepts 5 --concepts_h5 sl_top_concepts --decouple 1
+
+python train.py --dataset msvd --grounder_type niuc --captioner_type transformer --model_id transformer_1_niuc_dec --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048  --captioner_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts --decouple 1
+python train.py --dataset msrvtt --grounder_type niuc --captioner_type transformer --model_id transformer_1_niuc_dec  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048  --captioner_heads 8 --num_concepts 5 --concepts_h5 sl_top_concepts --decouple 1
+
 # Add grounding with multi stage (but not conditioned on past concepts) softmax with 5 top concepts (unconditioned, ordered)
 python train.py --dataset msvd --grounder_type nioc --captioner_type lstm --model_id lstm_1_nioc --batch_size 8 --test_batch_size 8 --max_epochs 100 --num_concepts 5 --concepts_h5 sl_top_concepts
 python train.py --dataset msrvtt --grounder_type nioc --captioner_type lstm --model_id lstm_1_nioc  --batch_size 8 --test_batch_size 4 --max_epochs 200 --num_concepts 5 --concepts_h5 sl_top_concepts
@@ -58,3 +65,32 @@ python train.py --dataset msrvtt --grounder_type nioc --captioner_type lstm --mo
 
 python train.py --dataset msvd --grounder_type nioc --captioner_type transformer --model_id transformer_1_nioc_svo --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048  --captioner_heads 8
 python train.py --dataset msrvtt --grounder_type nioc --captioner_type transformer --model_id transformer_1_nioc_svo  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048  --captioner_heads 8
+
+# with decoupling
+python train.py --dataset msvd --grounder_type nioc --captioner_type lstm --model_id lstm_1_nioc_svo_dec --batch_size 8 --test_batch_size 8 --max_epochs 100 --decouple 1
+python train.py --dataset msrvtt --grounder_type nioc --captioner_type lstm --model_id lstm_1_nioc_svo_dec  --batch_size 8 --test_batch_size 4 --max_epochs 200 --decouple 1
+
+python train.py --dataset msvd --grounder_type nioc --captioner_type transformer --model_id transformer_1_nioc_svo_dec --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048  --captioner_heads 8 --decouple 1
+python train.py --dataset msrvtt --grounder_type nioc --captioner_type transformer --model_id transformer_1_nioc_svo_dec  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048  --captioner_heads 8 --decouple 1
+
+# Add grounding with iterative transformer and default svos ordered
+python train.py --dataset msvd --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc_svo_dec --batch_size 8 --test_batch_size 8 --max_epochs 100 --grounder_size 2048 --grounder_heads 8 --decouple 1
+python train.py --dataset msrvtt --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc_svo_dec  --batch_size 8 --test_batch_size 4 --max_epochs 200 --grounder_size 2048 --grounder_heads 8 --decouple 1
+
+python train.py --dataset msvd --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc_svo_dec --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8 --decouple 1
+python train.py --dataset msrvtt --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc_svo_dec  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_heads 8 --decouple 1
+
+
+# Add grounding with iterative transformer and default svos ordered 2 cap layers
+python train.py --dataset msvd --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc_svo_dec_28 --batch_size 8 --test_batch_size 8 --max_epochs 100 --grounder_size 2048 --grounder_layers 2 --grounder_heads 8 --decouple 1
+python train.py --dataset msrvtt --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc_svo_dec_28  --batch_size 8 --test_batch_size 4 --max_epochs 200 --grounder_size 2048 --grounder_layers 2 --grounder_heads 8 --decouple 1
+
+python train.py --dataset msvd --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc_svo_dec_28 --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_layers 2 --grounder_heads 8 --decouple 1
+python train.py --dataset msrvtt --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc_svo_dec_28  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_layers 2 --grounder_heads 8 --decouple 1
+
+# Add grounding with iterative transformer and default svos ordered 2 cap layers and encoder 1024
+python train.py --dataset msvd --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc_svo_dec_28_enc_1024 --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 1024 --captioner_heads 8 --grounder_size 2048 --grounder_layers 2 --grounder_heads 8 --decouple 1 --input_encoder_layers 2 --input_encoder_heads 8 --input_encoder_size 2048 --input_encoding_size 1024 --att_size 1024
+python train.py --dataset msrvtt --grounder_type ioc --captioner_type lstm --model_id lstm_1_ioc_svo_dec_28_enc_1024  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 1024 --captioner_heads 8 --grounder_size 2048 --grounder_layers 2 --grounder_heads 8 --decouple 1 --input_encoder_layers 2 --input_encoder_heads 8 --input_encoder_size 2048 --input_encoding_size 1024
+#
+python train.py --dataset msvd --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc_svo_dec_28_enc_1024 --batch_size 8 --test_batch_size 8 --max_epochs 100 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_layers 2 --grounder_heads 8 --decouple 1 --input_encoder_layers 2 --input_encoder_heads 8 --input_encoder_size 2048 --input_encoding_size 1024
+python train.py --dataset msrvtt --grounder_type ioc --captioner_type transformer --model_id transformer_1_ioc_svo_dec_28_enc_1024  --batch_size 8 --test_batch_size 4 --max_epochs 200 --captioner_size 2048 --captioner_heads 8 --grounder_size 2048 --grounder_layers 2 --grounder_heads 8 --decouple 1 --input_encoder_layers 2 --input_encoder_heads 8 --input_encoder_size 2048 --input_encoding_size 1024
