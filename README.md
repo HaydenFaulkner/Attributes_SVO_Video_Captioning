@@ -1,5 +1,8 @@
 # Attributes and SVOs for Video Captioning
 
+
+<p align="center"><img src="model_diagram.svg"></p>
+
 This implementation is based on ["Syntax-Aware Action Targeting for Video Captioning"](http://openaccess.thecvf.com/content_CVPR_2020/papers/Zheng_Syntax-Aware_Action_Targeting_for_Video_Captioning_CVPR_2020_paper.pdf) ([code](https://github.com/SydCaption/SAAT)) which is based on ["Consensus-based Sequence Training for Video Captioning"](https://github.com/mynlp/cst_captioning).
 
 ## Dependencies
