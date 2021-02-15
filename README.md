@@ -1,4 +1,4 @@
-# Attributes and SVOs for Video Captioning
+<h1 align='center'>Attributes and SVOs for Video Captioning</h1>
 
 
 <p align="center"><img src="model_diagram.svg"></p>
