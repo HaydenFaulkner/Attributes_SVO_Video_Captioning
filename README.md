@@ -11,7 +11,7 @@ This implementation is based on ["Syntax-Aware Action Targeting for Video Captio
 This repo includes an [edited version (`coco-caption`)](coco-caption) of the [Python 3 coco evaluation protocols](https://github.com/salaniz/pycocoevalcap) (edited to load CIDEr corpus)
 
 ## Data
-Data can be downloaded from my **Google Drive**:
+The datasets and their features can be downloaded from my **Google Drive** along with pre-trained models resultant from the experiments:
 * [`datasets/msrvtt`](https://drive.google.com/drive/folders/1qYfGVEOj7qwp-DvsEHq0vhyld00MF1Ii?usp=sharing)
 * [`datasets/msvd`](https://drive.google.com/drive/folders/1IIt4cBfzyvTF6t2cCqWPjay3VrVQh00J?usp=sharing)
 * [`experiments`](https://drive.google.com/drive/folders/1qthoGUZTdYR_sONMOmycw97TBC6X_zf5?usp=sharing)
