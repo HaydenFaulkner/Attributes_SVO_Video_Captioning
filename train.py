@@ -1,11 +1,9 @@
-import argparse
+
 import torch
-import torch.nn as nn
 from torch.autograd import Variable
 import torch.optim as optim
 from torch.nn.utils import clip_grad_norm_
 import os
-import sys
 import random
 import time
 import math
@@ -17,9 +15,8 @@ from six.moves import cPickle
 import gc
 import numpy as np
 
-from dataloader_svo import DataLoader
-from model_svo import CaptionModel, CrossEntropyCriterion, RewardCriterion
-from model_general import GeneralModel, GeneralModelDecoupled
+from dataloader import DataLoader
+from model import GeneralModel, GeneralModelDecoupled, CrossEntropyCriterion, RewardCriterion
 
 import utils
 import opts
@@ -41,16 +38,6 @@ def memReport():
     for obj in gc.get_objects():
         if torch.is_tensor(obj):
             print(type(obj), obj.size())
-
-
-def cpuStats():
-        print(sys.version)
-        print(psutil.cpu_percent())
-        print(psutil.virtual_memory())  # physical memory usage
-        pid = os.getpid()
-        py = psutil.Process(pid)
-        memoryUse = py.memory_info()[0] / 2. ** 30  # memory use in GB...I think
-        print('memory GB:', memoryUse)
 
 
 def language_eval(predictions, cocofmt_file, opt):
@@ -686,28 +673,6 @@ if __name__ == '__main__':
         model = GeneralModelDecoupled(opt)
     else:
         model = GeneralModel(opt)
-    # if opt.captioner_type in ['lstm', 'gru', 'rnn']:
-    #     if opt.filter_type in ['none', 'None']:
-    #         model = RNN_DEC(opt)
-    #     elif opt.filter_type in ['svo_original']:
-    #         model = SVORNN(opt)
-    #     elif opt.filter_type in ['svo_transformer']:
-    #         model = CONRNN(opt)
-    #     else:
-    #         raise NotImplementedError
-    # elif opt.captioner_type in ['transformer']:
-    #     if opt.filter_type in ['none', 'None', 'niuc', 'iuc', 'ioc']:
-    #         model = TRF_DEC(opt)
-    #     elif opt.filter_type in ['svo_transformer']:
-    #         model = CONTRA(opt)
-    #     elif opt.filter_type in ['svo_transformer_2']:
-    #         model = CONTRAB(opt)
-    #     elif opt.filter_type in ['visual_encoder_only']:
-    #         model = SINTRA(opt)
-    #     else:
-    #         raise NotImplementedError
-    # else:
-    #     raise NotImplementedError
 
     xe_criterion = CrossEntropyCriterion()
     rl_criterion = RewardCriterion()

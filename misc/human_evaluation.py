@@ -9,7 +9,7 @@ import utils
 if __name__ == '__main__':
 
     # setup paths
-    cocofmt_file = os.path.join('datasets', 'msvd', 'metadata', 'msvd_train_cocofmt.json')
+    cocofmt_file = os.path.join('../datasets', 'msvd', 'metadata', 'msvd_train_cocofmt.json')
     # cocofmt_file = os.path.join('datasets', 'msrvtt', 'metadata', 'msrvtt_test_cocofmt.json')
     tmp_file_gt = 'human_gt.json'
     tmp_file_pr = 'human_pr.json'

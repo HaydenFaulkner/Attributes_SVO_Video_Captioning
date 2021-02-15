@@ -121,8 +121,8 @@ def comp_nouns_verbs(pred, gt, noun_mets=None, verb_mets=None, glove_emb=None):
     else:
         verb_f1 = 0
 
-    if glove_emb is None and os.path.exists(os.path.join('glove6b', 'glove.6B.300d.pkl')):
-        glove_emb = pkl.load(open(os.path.join('glove6b', 'glove.6B.300d.pkl'), 'rb'))
+    if glove_emb is None and os.path.exists(os.path.join('../glove6b', 'glove.6B.300d.pkl')):
+        glove_emb = pkl.load(open(os.path.join('../glove6b', 'glove.6B.300d.pkl'), 'rb'))
 
     pred_nouns_glove = list()
     for pn in pred_nouns:
@@ -311,16 +311,16 @@ if __name__ == '__main__':
     if 1:  #CONCEPT SCORES
         ######################################## Compare training scores with overfitting
         # load the concept vocabs
-        with open(os.path.join('datasets', dset, 'metadata', dset+'_nouns_vocab.pkl'), 'rb') as f:
+        with open(os.path.join('../datasets', dset, 'metadata', dset + '_nouns_vocab.pkl'), 'rb') as f:
             vocab_nouns = pkl.load(f)
-        with open(os.path.join('datasets', dset, 'metadata', dset+'_verbs_vocab.pkl'), 'rb') as f:
+        with open(os.path.join('../datasets', dset, 'metadata', dset + '_verbs_vocab.pkl'), 'rb') as f:
             vocab_verbs = pkl.load(f)
 
         # setup paths
-        cocofmt_file = os.path.join('datasets', dset, 'metadata', dset+'_'+split+'_cocofmt.json')
+        cocofmt_file = os.path.join('../datasets', dset, 'metadata', dset + '_' + split + '_cocofmt.json')
 
-        if os.path.exists(os.path.join('glove6b', 'glove.6B.300d.pkl')):
-            glove_emb = pkl.load(open(os.path.join('glove6b', 'glove.6B.300d.pkl'), 'rb'))
+        if os.path.exists(os.path.join('../glove6b', 'glove.6B.300d.pkl')):
+            glove_emb = pkl.load(open(os.path.join('../glove6b', 'glove.6B.300d.pkl'), 'rb'))
 
         # load the real ground truth
         gt = json.load(open(cocofmt_file))
@@ -373,7 +373,7 @@ if __name__ == '__main__':
         # ###### RUN MODEL NOUN VERB CHECK
         # load the ids of the captions in our test-on-training run
         # gtt = json.load(open('/media/hayden/Storage2/CODEBASE/SAAT-master/experiments/exp/train_best.json'))
-        pr = json.load(open(os.path.join('experiments', 'lstm00_1', dset+'_'+split+'.json')))
+        pr = json.load(open(os.path.join('../experiments', 'lstm00_1', dset + '_' + split + '.json')))
         caps_p = dict()
         for c in pr:
             caps_p[c['image_id']] = c['caption']
